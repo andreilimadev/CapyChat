@@ -1,37 +1,49 @@
 package com.andreilima.capychat.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
-    primary = CapyPrimary,
-    onPrimary = Color.White,
-    secondary = CapySecondary,
-    onSecondary = Color.White,
-    background = CapyBackground,
-    onBackground = CapyText,
-    surface = CapySurface,
-    onSurface = CapyText,
-    surfaceVariant = Color(0xFFE9EDC9), // Tom levemente esverdeado para variação
-    onSurfaceVariant = CapyText,
-    outline = CapyOutline,
-    error = CapyError
+    primary          = CapyPrimary,
+    onPrimary        = CapyOnPrimary,
+    secondary        = CapyAccentBlue,
+    onSecondary      = CapyWhite,
+    background       = CapyBackground,
+    onBackground     = CapyTextDark,
+    surface          = CapySurface,
+    onSurface        = CapyTextDark,
+    surfaceVariant   = CapySurfaceVariant,
+    onSurfaceVariant = CapyTextMuted,
+    outline          = CapyOutline,
+    error            = CapyError,
+    errorContainer   = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF8B1A1A)
 )
 
-// Esquema de cores escuras para evitar crashes se o sistema mudar para dark mode
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFEBC194),
-    onPrimary = Color(0xFF3D2B1F),
-    secondary = Color(0xFFC7A88D),
-    onSecondary = Color(0xFF3D2B1F),
-    background = Color(0xFF2B2922),
-    onBackground = Color(0xFFFEFAE0),
-    surface = Color(0xFF35332C),
-    onSurface = Color(0xFFFEFAE0),
-    outline = CapyOutline,
-    error = CapyError
+    primary          = Color(0xFFC49A6C),   // caramelo claro — legível no escuro
+    onPrimary        = Color(0xFF2B1A0A),
+
+    secondary        = Color(0xFF7BAFD4),   // azul mais suave no escuro
+    onSecondary      = Color(0xFF0D1F2D),
+
+    background       = Color(0xFF1A1612),   // marrom muito escuro, não preto puro
+    onBackground     = Color(0xFFEDE5D8),   // bege claro para texto
+
+    surface          = Color(0xFF26201A),   // um tom acima do background
+    onSurface        = Color(0xFFEDE5D8),
+
+    surfaceVariant   = Color(0xFF352C24),   // cards e inputs
+    onSurfaceVariant = Color(0xFFBBAB98),   // texto secundário
+
+    outline          = Color(0xFF5C4F42),
+    error            = Color(0xFFFFB4AB),
+    errorContainer   = Color(0xFF5C1A1A),
+    onErrorContainer = Color(0xFFFFDAD6)
 )
 
 @Composable
@@ -43,7 +55,8 @@ fun CapyChatTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography(),
-        content = content
+        typography  = CapyTypography,
+        shapes      = CapyShapes,
+        content     = content
     )
 }

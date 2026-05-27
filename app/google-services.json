@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "463642188774",
+    "project_id": "capychat-c6736",
+    "storage_bucket": "capychat-c6736.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463642188774:android:d24287e6c75da1cd661427",
+        "android_client_info": {
+          "package_name": "com.andreilima.capychat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3MoV2tC4E8SLdNG6uaaB3TR6v0MIJlns"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

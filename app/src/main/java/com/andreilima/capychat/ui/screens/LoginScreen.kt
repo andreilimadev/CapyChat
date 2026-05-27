@@ -2,130 +2,262 @@ package com.andreilima.capychat.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MailOutline
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.andreilima.capychat.R
+import com.andreilima.capychat.ui.theme.CapyPrimary
+import com.andreilima.capychat.ui.theme.CapyPrimaryDark
 
 @Composable
 fun LoginScreen(
     onLoginClick: (String, String) -> Unit,
-    onGoToRegister: () -> Unit
+    onGoToRegister: () -> Unit,
+    onGoogleClick: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
     ) {
-        Spacer(modifier = Modifier.height(36.dp))
-
-        Image(
-            painter = painterResource(id = R.drawable.capy_logo),
-            contentDescription = "Logo do CapyChat",
+        Column(
             modifier = Modifier
-                .width(90.dp)
-                .height(90.dp)
-                .clip(RoundedCornerShape(24.dp))
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Bem-vindo ao CapyChat",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        AuthToggle(
-            isLogin = true,
-            onSelectLogin = { },
-            onSelectRegister = onGoToRegister
-        )
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        Text(
-            text = "E-mail",
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.onBackground,
-            style = MaterialTheme.typography.bodyLarge
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        CapyTextField(
-            value = email,
-            onValueChange = { email = it },
-            placeholder = "seu@email.com"
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Text(
-            text = "Senha",
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.onBackground,
-            style = MaterialTheme.typography.bodyLarge
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        CapyTextField(
-            value = password,
-            onValueChange = { password = it },
-            placeholder = "********"
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text(
-            text = "Esqueci minha senha",
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        Button(
-            onClick = { onLoginClick(email, password) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(58.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
+            Card(
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+            ) {
+                Box(
+                    modifier = Modifier.padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.capy_logo),
+                        contentDescription = "Logo do CapyChat",
+                        modifier = Modifier
+                            .size(78.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
             Text(
-                text = "Entrar",
-                style = MaterialTheme.typography.titleMedium
+                text = "Bem-vindo ao CapyChat",
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            AuthSwitcher(
+                isLoginSelected = true,
+                onSelectLogin = { },
+                onSelectRegister = onGoToRegister
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "E-mail",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                CapyAuthField(
+                    value = email,
+                    onValueChange = { email = it },
+                    placeholder = "seu@email.com",
+                    leading = {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Outlined.MailOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "Senha",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                CapyAuthField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = "••••••••",
+                    leading = {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    isPassword = true
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                TextButton(
+                    onClick = { },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        text = "Esqueci minha senha",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = { onLoginClick(email, password) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CapyPrimary,
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                ) {
+                    Text(
+                        text = "Entrar",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                    Text(
+                        text = "  ou  ",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                OutlinedButton(
+                    onClick = onGoogleClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "G",
+                            color = CapyPrimaryDark,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Text(
+                        text = "Continuar com Google",
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun AuthToggle(
-    isLogin: Boolean,
+private fun AuthSwitcher(
+    isLoginSelected: Boolean,
     onSelectLogin: () -> Unit,
     onSelectRegister: () -> Unit
 ) {
@@ -133,25 +265,25 @@ fun AuthToggle(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(6.dp)
         ) {
-            ToggleItem(
+            SwitchItem(
                 text = "Entrar",
-                selected = isLogin,
+                selected = isLoginSelected,
                 modifier = Modifier.weight(1f),
                 onClick = onSelectLogin
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            ToggleItem(
+            SwitchItem(
                 text = "Criar conta",
-                selected = !isLogin,
+                selected = !isLoginSelected,
                 modifier = Modifier.weight(1f),
                 onClick = onSelectRegister
             )
@@ -160,7 +292,7 @@ fun AuthToggle(
 }
 
 @Composable
-fun ToggleItem(
+private fun SwitchItem(
     text: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
@@ -169,40 +301,52 @@ fun ToggleItem(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surface
+            )
             .clickable { onClick() }
-            .padding(vertical = 16.dp),
+            .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.titleMedium
+            color = if (selected) Color.White else MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Medium
         )
     }
 }
 
 @Composable
-fun CapyTextField(
+private fun CapyAuthField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String
+    placeholder: String,
+    leading: @Composable (() -> Unit)? = null,
+    isPassword: Boolean = false
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
         placeholder = {
-            Text(text = placeholder)
+            Text(
+                text = placeholder,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         },
+        leadingIcon = leading,
         singleLine = true,
+        visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         shape = RoundedCornerShape(18.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            cursorColor = MaterialTheme.colorScheme.primary
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedBorderColor = MaterialTheme.colorScheme.outline,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+            cursorColor = MaterialTheme.colorScheme.primary,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }

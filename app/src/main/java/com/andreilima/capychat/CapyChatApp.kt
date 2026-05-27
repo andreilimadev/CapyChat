@@ -1,173 +1,278 @@
 package com.andreilima.capychat
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.tooling.preview.Preview
-import com.andreilima.capychat.data.model.ChatItem
-import com.andreilima.capychat.data.model.Message
-import com.andreilima.capychat.data.model.StatusItem
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andreilima.capychat.data.firebase.FirebaseService
+import com.andreilima.capychat.ui.components.CapyConfirmDialog
+import com.andreilima.capychat.ui.components.CapyLoadingState
+import com.andreilima.capychat.ui.components.CreateRoomDialogContent
+import com.andreilima.capychat.ui.components.MainShell
 import com.andreilima.capychat.ui.screens.*
 import com.andreilima.capychat.ui.theme.CapyChatTheme
+import com.andreilima.capychat.ui.viewmodel.AuthState
+import com.andreilima.capychat.ui.viewmodel.AuthViewModel
+import com.andreilima.capychat.ui.viewmodel.ChatViewModel
+import kotlinx.coroutines.launch
 
-@Preview(showBackground = true, showSystemUi = true)
+enum class Screen {
+    LOGIN, REGISTER, CONVERSATIONS, CHAT, STATUS, STATUS_VIEW, PROFILE, PRIVACY, SETTINGS, HELP, CIA
+}
+
 @Composable
-fun CapyChatApp() {
-    CapyChatTheme {
-        var currentScreen by remember { mutableStateOf("login") }
-        var currentUserName by remember { mutableStateOf("") }
-
-        // Listas imutáveis para recomposição correta (Regra 9)
-        var chats by remember {
-            mutableStateOf(
-                listOf(
-                    ChatItem("1", "Matemática", "Lista 3 vence amanhã", "Prof. Lucas", "📐", 2),
-                    ChatItem("2", "História", "Alguém tem resumo da prova?", "Ana", "📚", 0),
-                    ChatItem("3", "Projeto TCC", "Vamos revisar o app hoje", "Equipe", "🧠", 4)
-                )
-            )
-        }
-
-        var statuses by remember {
-            mutableStateOf(
-                listOf(
-                    StatusItem("1", "Ana", "Estudando para prova", "📘", "há 10 min"),
-                    StatusItem("2", "Lucas", "Terminando o slide", "💻", "há 25 min"),
-                    StatusItem("3", "Marina", "Intervalo do café", "☕", "há 1 h")
-                )
-            )
-        }
-
-        var messagesByChat by remember {
-            mutableStateOf(
-                mapOf(
-                    "1" to listOf(
-                        Message("1", "Prof. Lucas", "Pessoal, revisem equações do 2º grau.", false, "08:30"),
-                        Message("2", "Você", "Vou mandar minhas anotações depois.", true, "08:32")
-                    ),
-                    "2" to listOf(
-                        Message("3", "Ana", "Alguém tem resumo da prova?", false, "09:10")
-                    ),
-                    "3" to listOf(
-                        Message("4", "Equipe", "Vamos revisar o app hoje", false, "10:00")
-                    )
-                )
-            )
-        }
+fun CapyChatApp(
+    authViewModel: AuthViewModel = viewModel(),
+    chatViewModel: ChatViewModel = viewModel(),
+) {
+    var darkTheme by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    
+    CapyChatTheme(darkTheme = darkTheme) {
+        val authState by authViewModel.state.collectAsStateWithLifecycle()
+        val currentScreenState = remember { mutableStateOf(Screen.LOGIN) }
+        var currentScreen by currentScreenState
 
         var selectedChatId by remember { mutableStateOf<String?>(null) }
+        var selectedChatName by remember { mutableStateOf("") }
+        var selectedChatEmoji by remember { mutableStateOf("💬") }
+        var selectedChatIsPrivate by remember { mutableStateOf(false) }
+        
+        var showCreateRoomDialog by remember { mutableStateOf(false) }
+        var newRoomName by remember { mutableStateOf("") }
+        var newRoomEmoji by remember { mutableStateOf("💬") }
+        
         var selectedStatusId by remember { mutableStateOf<String?>(null) }
+        var showLogoutDialog by remember { mutableStateOf(false) }
 
-        when (currentScreen) {
-            "login" -> LoginScreen(
-                onLoginClick = { email, _ ->
-                    if (email.isNotBlank()) {
-                        // Simulação de login robusta
-                        currentUserName = email.substringBefore("@")
-                            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                        currentScreen = "home"
-                    }
-                },
-                onGoToRegister = { currentScreen = "register" }
-            )
+        fun navigate(to: Screen) {
+            currentScreen = to
+        }
 
-            "register" -> RegisterScreen(
-                onRegisterClick = { name, email, _ ->
-                    if (name.isNotBlank() && email.isNotBlank()) {
-                        currentUserName = name
-                        currentScreen = "home"
-                    }
-                },
-                onBackToLogin = { currentScreen = "login" }
-            )
+        fun showFeedback(message: String) {
+            scope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
+        }
 
-            "home" -> HomeScreen(
-                userName = if (currentUserName.isBlank()) "Estudante" else currentUserName,
-                onOpenConversations = { currentScreen = "conversations" },
-                onOpenStatus = { currentScreen = "status" },
-                onLogout = { 
-                    currentUserName = ""
-                    currentScreen = "login" 
+        LaunchedEffect(authState) {
+            val state = authState
+            if (state is AuthState.LoggedIn) {
+                if (currentScreen == Screen.LOGIN || currentScreen == Screen.REGISTER) {
+                    navigate(Screen.CONVERSATIONS)
+                    chatViewModel.startObservingRooms(state.uid)
+                    chatViewModel.startObservingStatuses(state.uid)
                 }
-            )
+            } else if (state is AuthState.LoggedOut) {
+                navigate(Screen.LOGIN)
+                chatViewModel.stopObservingMessages()
+            }
+        }
 
-            "conversations" -> ConversationsScreen(
-                chats = chats,
-                onChatClick = { chat ->
-                    selectedChatId = chat.id
-                    currentScreen = "chat"
-                },
-                onBackClick = { currentScreen = "home" },
-                onCreateRoom = {
-                    val newId = System.currentTimeMillis().toString()
-                    val newRoom = ChatItem(
-                        id = newId,
-                        name = "Nova Sala #${chats.size + 1}",
-                        lastMessage = "Sala iniciada",
-                        author = currentUserName.ifBlank { "Você" },
-                        avatarEmoji = "📝",
-                        unreadCount = 0
-                    )
-                    chats = listOf(newRoom) + chats
-                    messagesByChat = messagesByChat + (newId to listOf(
-                        Message(newId + "_init", "Sistema", "Bem-vindo!", false, "Agora")
-                    ))
-                }
-            )
+        val isMainScreen = currentScreen in listOf(Screen.CONVERSATIONS, Screen.STATUS, Screen.PROFILE)
 
-            "chat" -> {
-                val chatId = selectedChatId
-                val chat = chats.find { it.id == chatId }
-                if (chat != null) {
-                    ChatScreen(
-                        contactName = chat.name,
-                        contactEmoji = chat.avatarEmoji,
-                        messages = messagesByChat[chatId] ?: emptyList(),
-                        onBackClick = { currentScreen = "conversations" },
-                        onSendMessage = { text ->
-                            if (text.isNotBlank()) {
-                                val newMessage = Message(
-                                    id = System.currentTimeMillis().toString(),
-                                    sender = currentUserName.ifBlank { "Você" },
-                                    text = text,
-                                    isMine = true,
-                                    time = "Agora"
+        if (authState is AuthState.Loading) {
+            CapyLoadingState(message = "Autenticando...")
+        } else {
+            val loggedInState = authState as? AuthState.LoggedIn
+            val rooms by chatViewModel.rooms.collectAsStateWithLifecycle()
+            val messages by chatViewModel.messages.collectAsStateWithLifecycle()
+            val statuses by chatViewModel.statuses.collectAsStateWithLifecycle()
+            val searchResults by chatViewModel.searchResults.collectAsStateWithLifecycle()
+            val isSearching by chatViewModel.isSearching.collectAsStateWithLifecycle()
+            val searchQuery by chatViewModel.searchQuery.collectAsStateWithLifecycle()
+
+            if (isMainScreen) {
+                MainShell(
+                    currentScreen = currentScreen,
+                    onNavigate = { navigate(it) },
+                    snackbarHostState = snackbarHostState
+                ) { padding ->
+                    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = {
+                                fadeIn() togetherWith fadeOut()
+                            },
+                            label = "main_transition"
+                        ) { screen ->
+                            when (screen) {
+                                Screen.CONVERSATIONS -> ConversationsScreen(
+                                    rooms = rooms,
+                                    searchResults = searchResults,
+                                    isSearching = isSearching,
+                                    searchQuery = searchQuery,
+                                    onSearchQueryChange = { chatViewModel.onSearchQueryChange(it) },
+                                    onChatClick = { chat ->
+                                        selectedChatId = chat.id
+                                        selectedChatName = chat.name
+                                        selectedChatEmoji = chat.avatarEmoji
+                                        selectedChatIsPrivate = chat.isPrivate
+                                        loggedInState?.let { state ->
+                                            chatViewModel.startObservingMessages(chat.id, chat.isPrivate, state.uid)
+                                        }
+                                        navigate(Screen.CHAT)
+                                    },
+                                    onUserClick = { user ->
+                                        loggedInState?.let { state ->
+                                            chatViewModel.startPrivateChat(state.uid, state.username, user) { roomId, roomName ->
+                                                selectedChatId = roomId
+                                                selectedChatName = roomName
+                                                selectedChatEmoji = "🔒"
+                                                selectedChatIsPrivate = true
+                                                chatViewModel.startObservingMessages(roomId, true, state.uid)
+                                                navigate(Screen.CHAT)
+                                                showFeedback("Conversa com $roomName iniciada!")
+                                            }
+                                        }
+                                    },
+                                    onCreateRoom = { showCreateRoomDialog = true }
                                 )
-                                messagesByChat = messagesByChat + (chatId!! to ((messagesByChat[chatId] ?: emptyList()) + newMessage))
-                                
-                                // Atualizar última mensagem na lista
-                                chats = chats.map { 
-                                    if (it.id == chatId) it.copy(lastMessage = text, author = "Você") else it 
-                                }
+                                Screen.STATUS -> StatusScreen(
+                                    statuses = statuses,
+                                    onStatusClick = { status ->
+                                        selectedStatusId = status.id
+                                        navigate(Screen.STATUS_VIEW)
+                                    },
+                                    onPostStatus = { text, emoji ->
+                                        loggedInState?.let { state ->
+                                            chatViewModel.createStatus(state.uid, state.username, text, emoji) {
+                                                showFeedback("Status publicado!")
+                                            }
+                                        }
+                                    }
+                                )
+                                Screen.PROFILE -> ProfileScreen(
+                                    userName = loggedInState?.username ?: "Usuário",
+                                    userEmail = FirebaseService.auth.currentUser?.email ?: "",
+                                    onLogout = { showLogoutDialog = true },
+                                    onOpenPrivacy = { navigate(Screen.PRIVACY) },
+                                    onOpenSettings = { navigate(Screen.SETTINGS) },
+                                    onOpenHelp = { navigate(Screen.HELP) },
+                                    onOpenCIA = { 
+                                        navigate(Screen.CIA)
+                                        showFeedback("CIA ACCESS GRANTED")
+                                    }
+                                )
+                                else -> {}
                             }
                         }
-                    )
-                } else {
-                    currentScreen = "conversations"
+                    }
+                }
+            } else {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            slideInHorizontally { it } togetherWith slideOutHorizontally { -it / 3 }
+                        },
+                        label = "secondary_transition"
+                    ) { screen ->
+                        when (screen) {
+                            Screen.LOGIN -> LoginScreen(
+                                onLoginClick = { e, p -> authViewModel.login(e, p) },
+                                onGoToRegister = { navigate(Screen.REGISTER) }
+                            )
+                            Screen.REGISTER -> RegisterScreen(
+                                onRegisterClick = { n, e, p -> authViewModel.register(n, e, p) },
+                                onBackToLogin = { navigate(Screen.LOGIN) }
+                            )
+                            Screen.CHAT -> {
+                                selectedChatId?.let { chatId ->
+                                    ChatScreen(
+                                        contactName = selectedChatName,
+                                        contactEmoji = selectedChatEmoji,
+                                        messages = messages,
+                                        onBackClick = {
+                                            chatViewModel.stopObservingMessages()
+                                            navigate(Screen.CONVERSATIONS)
+                                        },
+                                        onSendMessage = { text ->
+                                            loggedInState?.let { state ->
+                                                chatViewModel.sendMessage(chatId, selectedChatIsPrivate, text, state.uid, state.username)
+                                            }
+                                        }
+                                    )
+                                } ?: navigate(Screen.CONVERSATIONS)
+                            }
+                            Screen.STATUS_VIEW -> {
+                                statuses.find { it.id == selectedStatusId }?.let { status ->
+                                    StatusViewerScreen(status = status, onBackClick = { navigate(Screen.STATUS) })
+                                    chatViewModel.markStatusAsViewed(status.id, loggedInState?.uid ?: "")
+                                } ?: navigate(Screen.STATUS)
+                            }
+                            Screen.PRIVACY -> PrivacyScreen(onBackClick = { navigate(Screen.PROFILE) })
+                            Screen.SETTINGS -> SettingsScreen(
+                                darkTheme = darkTheme,
+                                onThemeChange = { darkTheme = it },
+                                onBackClick = { navigate(Screen.PROFILE) }
+                            )
+                            Screen.HELP -> HelpScreen(onBackClick = { navigate(Screen.PROFILE) })
+                            Screen.CIA -> CIASecretScreen(onBackClick = { navigate(Screen.PROFILE) })
+                            else -> {}
+                        }
+                    }
+                    
+                    SnackbarHost(hostState = snackbarHostState)
                 }
             }
 
-            "status" -> StatusScreen(
-                statuses = statuses,
-                onStatusClick = { status ->
-                    selectedStatusId = status.id
-                    currentScreen = "status_view"
-                },
-                onBackClick = { currentScreen = "home" }
-            )
+            if (showCreateRoomDialog) {
+                AlertDialog(
+                    onDismissRequest = { showCreateRoomDialog = false },
+                    title = { Text("Nova Sala", fontWeight = FontWeight.Bold) },
+                    text = {
+                        CreateRoomDialogContent(
+                            roomName = newRoomName,
+                            roomEmoji = newRoomEmoji,
+                            onNameChange = { newRoomName = it },
+                            onEmojiChange = { newRoomEmoji = it }
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (newRoomName.isNotBlank()) {
+                                    loggedInState?.let { state ->
+                                        chatViewModel.createPublicRoom(newRoomName, newRoomEmoji, state.username) { roomId ->
+                                            selectedChatId = roomId
+                                            selectedChatName = newRoomName
+                                            selectedChatEmoji = newRoomEmoji
+                                            selectedChatIsPrivate = false
+                                            chatViewModel.startObservingMessages(roomId, false, state.uid)
+                                            navigate(Screen.CHAT)
+                                            showFeedback("Sala '$newRoomName' criada!")
+                                        }
+                                    }
+                                    showCreateRoomDialog = false
+                                    newRoomName = ""
+                                }
+                            }
+                        ) { Text("Criar") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showCreateRoomDialog = false }) { Text("Cancelar") }
+                    }
+                )
+            }
 
-            "status_view" -> {
-                val statusId = selectedStatusId
-                val status = statuses.find { it.id == statusId }
-                if (status != null) {
-                    StatusViewerScreen(
-                        statusName = status.name,
-                        statusEmoji = status.emoji,
-                        statusText = status.text,
-                        statusTime = status.time,
-                        onBackClick = { currentScreen = "status" }
-                    )
-                } else {
-                    currentScreen = "status"
-                }
+            if (showLogoutDialog) {
+                CapyConfirmDialog(
+                    title = "Sair da conta",
+                    message = "Deseja realmente sair?",
+                    onConfirm = {
+                        showLogoutDialog = false
+                        authViewModel.logout()
+                    },
+                    onDismiss = { showLogoutDialog = false }
+                )
             }
         }
     }

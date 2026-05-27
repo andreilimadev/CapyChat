@@ -1,0 +1,148 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // HELPERS
+    // =====================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isPrivateParticipant(roomId) {
+      return get(
+        /databases/$(database)/documents/private_rooms/$(roomId)
+      ).data.participants[request.auth.uid] == true;
+    }
+
+    // =====================================================
+    // USERS
+    // =====================================================
+
+    match /users/{userId} {
+
+      // Usuários logados podem buscar/perfis
+      allow read: if isAuthenticated();
+
+      // Apenas dono do perfil pode criar/editar/deletar
+      allow create: if isAuthenticated() && isOwner(userId);
+
+      allow update: if isAuthenticated()
+        && isOwner(userId);
+
+      allow delete: if false;
+    }
+
+    // =====================================================
+    // PUBLIC ROOMS
+    // =====================================================
+
+    match /public_rooms/{roomId} {
+
+      // Todos autenticados podem visualizar
+      allow read: if isAuthenticated();
+
+      // Criar sala pública
+      allow create: if isAuthenticated();
+
+      // Atualizar sala pública
+      // (lastMessage, lastMessageAt etc)
+      allow update: if isAuthenticated();
+
+      // Impedir deletar salas pelo app
+      allow delete: if false;
+
+      // =================================================
+      // PUBLIC MESSAGES
+      // =================================================
+
+      match /messages/{messageId} {
+
+        // Ler mensagens
+        allow read: if isAuthenticated();
+
+        // Criar mensagem apenas como si mesmo
+        allow create: if isAuthenticated()
+          && request.resource.data.senderId == request.auth.uid;
+
+        // Não permitir edição de mensagens
+        allow update: if false;
+
+        // Não permitir deletar mensagens
+        allow delete: if false;
+      }
+    }
+
+    // =====================================================
+    // PRIVATE ROOMS
+    // =====================================================
+
+    match /private_rooms/{roomId} {
+
+      // Apenas participantes podem ler
+      allow read: if isAuthenticated()
+        && resource.data.participants[request.auth.uid] == true;
+
+      // Criar DM apenas participando dela
+      allow create: if isAuthenticated()
+        && request.resource.data.participants[request.auth.uid] == true;
+
+      // Apenas participantes podem atualizar
+      allow update: if isAuthenticated()
+        && resource.data.participants[request.auth.uid] == true;
+
+      // Não permitir deletar chats privados
+      allow delete: if false;
+
+      // =================================================
+      // PRIVATE MESSAGES
+      // =================================================
+
+      match /messages/{messageId} {
+
+        // Ler mensagens privadas
+        allow read: if isAuthenticated()
+          && isPrivateParticipant(roomId);
+
+        // Criar mensagem privada
+        allow create: if isAuthenticated()
+          && isPrivateParticipant(roomId)
+          && request.resource.data.senderId == request.auth.uid;
+
+        // Não permitir editar mensagens
+        allow update: if false;
+
+        // Não permitir deletar mensagens
+        allow delete: if false;
+      }
+    }
+
+    // =====================================================
+    // STATUS
+    // =====================================================
+
+    match /statuses/{statusId} {
+
+      // Todos autenticados podem visualizar
+      allow read: if isAuthenticated();
+
+      // Criar apenas próprio status
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid;
+
+      // Apenas dono pode editar
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+
+      // Apenas dono pode deletar
+      allow delete: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+    }
+  }
+}
