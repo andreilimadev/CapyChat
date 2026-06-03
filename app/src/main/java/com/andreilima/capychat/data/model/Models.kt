@@ -12,11 +12,13 @@ data class ChatItem(
     val lastMessage: String = "",
     val author: String = "",
     val avatarEmoji: String = "💬",
+    val photoUrl: String? = null,
     val unreadCount: Int = 0,
     val lastTime: String = "",
     val isPinned: Boolean = false,
     val isMuted: Boolean = false,
-    val isPrivate: Boolean = false
+    val isPrivate: Boolean = false,
+    val isOnline: Boolean = false
 )
 
 data class Message(
@@ -24,8 +26,16 @@ data class Message(
     val sender: String = "",
     val text: String = "",
     val isMine: Boolean = false,
-    val time: String = ""
+    val time: String = "",
+    val messageType: String = "text",   // text | image | emoji
+    val status: MessageStatus = MessageStatus.SENT
 )
+
+enum class MessageStatus {
+    SENT,       // ✓
+    DELIVERED,  // ✓✓
+    READ        // ✓✓ azul
+}
 
 data class StatusItem(
     val id: String = "",
@@ -33,6 +43,7 @@ data class StatusItem(
     val name: String = "",
     val text: String = "",
     val emoji: String = "🦫",
+    val photoUrl: String? = null,
     val time: String = "",
     val isNew: Boolean = true
 )
@@ -41,7 +52,8 @@ data class UserSearchItem(
     val uid: String,
     val username: String,
     val userTag: String,
-    val photoUrl: String? = null
+    val photoUrl: String? = null,
+    val isOnline: Boolean = false
 )
 
 // =========================================================
@@ -56,6 +68,9 @@ data class FirestoreUser(
     val userTag: String = "",
     val email: String = "",
     val photoUrl: String? = null,
+    val bio: String = "",               // NOVO
+    val isOnline: Boolean = false,      // NOVO
+    val lastSeen: Long = 0L,            // NOVO
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -67,14 +82,18 @@ data class FirestoreRoom(
     val createdBy: String = "",
     val isPrivate: Boolean = false,
     val participants: Map<String, Boolean> = emptyMap(),
-    val participantNames: Map<String, String> = emptyMap()
+    val participantNames: Map<String, String> = emptyMap(),
+    val typingUsers: Map<String, Boolean> = emptyMap()  // NOVO — "digitando..."
 )
 
 data class FirestoreMessage(
     val text: String = "",
     val senderId: String = "",
     val senderName: String = "",
-    val timestamp: Long = 0L
+    val timestamp: Long = 0L,
+    val messageType: String = "text",                       // NOVO
+    val readBy: Map<String, Boolean> = emptyMap(),          // NOVO
+    val deliveredTo: Map<String, Boolean> = emptyMap()      // NOVO
 )
 
 data class FirestoreStatus(
@@ -84,9 +103,22 @@ data class FirestoreStatus(
     val userTag: String = "",
     val text: String = "",
     val emoji: String = "🦫",
+    val photoUrl: String? = null,                           // NOVO
     val createdAt: Long = System.currentTimeMillis(),
     val expiresAt: Long = 0L,
     val viewedBy: Map<String, Boolean> = emptyMap()
+)
+
+// NOVO — Notificações
+data class FirestoreNotification(
+    val id: String = "",
+    val toUserId: String = "",
+    val fromUserId: String = "",
+    val fromUsername: String = "",
+    val type: String = "",      // message | status | mention
+    val payload: String = "",
+    val isRead: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 // =========================================================
@@ -110,7 +142,7 @@ fun FirestoreRoom.toChatItem(id: String, currentUserId: String): ChatItem {
         id = id,
         name = finalName,
         lastMessage = lastMessage,
-        author = "", 
+        author = "",
         avatarEmoji = avatarEmoji,
         lastTime = timeStr,
         isPrivate = isPrivate
@@ -124,12 +156,20 @@ fun FirestoreMessage.toMessage(id: String, currentUserId: String): Message {
         String.format("%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
     } else "Agora"
 
+    val status = when {
+        readBy.containsKey(currentUserId) -> MessageStatus.READ
+        deliveredTo.containsKey(currentUserId) -> MessageStatus.DELIVERED
+        else -> MessageStatus.SENT
+    }
+
     return Message(
         id = id,
         sender = senderName,
         text = text,
         isMine = senderId == currentUserId,
-        time = timeStr
+        time = timeStr,
+        messageType = messageType,
+        status = status
     )
 }
 
@@ -147,6 +187,7 @@ fun FirestoreStatus.toStatusItem(currentUserId: String): StatusItem {
         name = username,
         text = text,
         emoji = emoji,
+        photoUrl = photoUrl,
         time = timeStr,
         isNew = !viewedBy.containsKey(currentUserId) && userId != currentUserId
     )
@@ -156,5 +197,6 @@ fun FirestoreUser.toSearchItem(): UserSearchItem = UserSearchItem(
     uid = uid,
     username = username,
     userTag = userTag,
-    photoUrl = photoUrl
+    photoUrl = photoUrl,
+    isOnline = isOnline
 )

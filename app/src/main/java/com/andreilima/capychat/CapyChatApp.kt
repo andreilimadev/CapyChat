@@ -8,6 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andreilima.capychat.data.firebase.FirebaseService
@@ -34,7 +37,8 @@ fun CapyChatApp(
     var darkTheme by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     CapyChatTheme(darkTheme = darkTheme) {
         val authState by authViewModel.state.collectAsStateWithLifecycle()
         val currentScreenState = remember { mutableStateOf(Screen.LOGIN) }
@@ -44,22 +48,34 @@ fun CapyChatApp(
         var selectedChatName by remember { mutableStateOf("") }
         var selectedChatEmoji by remember { mutableStateOf("💬") }
         var selectedChatIsPrivate by remember { mutableStateOf(false) }
-        
+
         var showCreateRoomDialog by remember { mutableStateOf(false) }
         var newRoomName by remember { mutableStateOf("") }
         var newRoomEmoji by remember { mutableStateOf("💬") }
-        
+
         var selectedStatusId by remember { mutableStateOf<String?>(null) }
         var showLogoutDialog by remember { mutableStateOf(false) }
 
-        fun navigate(to: Screen) {
-            currentScreen = to
-        }
+        val typingUsers by chatViewModel.typingUsers.collectAsStateWithLifecycle()
+
+        fun navigate(to: Screen) { currentScreen = to }
 
         fun showFeedback(message: String) {
-            scope.launch {
-                snackbarHostState.showSnackbar(message)
+            scope.launch { snackbarHostState.showSnackbar(message) }
+        }
+
+        // Gerencia status online/offline pelo ciclo de vida do app
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                val uid = FirebaseService.auth.currentUser?.uid ?: return@LifecycleEventObserver
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> chatViewModel.setOnline(uid)
+                    Lifecycle.Event.ON_PAUSE  -> chatViewModel.setOffline(uid)
+                    else -> {}
+                }
             }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
         LaunchedEffect(authState) {
@@ -67,8 +83,11 @@ fun CapyChatApp(
             if (state is AuthState.LoggedIn) {
                 if (currentScreen == Screen.LOGIN || currentScreen == Screen.REGISTER) {
                     navigate(Screen.CONVERSATIONS)
+                    chatViewModel.setOnline(state.uid)
                     chatViewModel.startObservingRooms(state.uid)
                     chatViewModel.startObservingStatuses(state.uid)
+                    chatViewModel.startObservingNotifications(state.uid)
+                    chatViewModel.loadUserProfile(state.uid)
                 }
             } else if (state is AuthState.LoggedOut) {
                 navigate(Screen.LOGIN)
@@ -88,19 +107,19 @@ fun CapyChatApp(
             val searchResults by chatViewModel.searchResults.collectAsStateWithLifecycle()
             val isSearching by chatViewModel.isSearching.collectAsStateWithLifecycle()
             val searchQuery by chatViewModel.searchQuery.collectAsStateWithLifecycle()
+            val unreadCount by chatViewModel.unreadNotificationsCount.collectAsStateWithLifecycle()
 
             if (isMainScreen) {
                 MainShell(
                     currentScreen = currentScreen,
                     onNavigate = { navigate(it) },
-                    snackbarHostState = snackbarHostState
+                    snackbarHostState = snackbarHostState,
+                    unreadNotificationsCount = unreadCount
                 ) { padding ->
                     Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                         AnimatedContent(
                             targetState = currentScreen,
-                            transitionSpec = {
-                                fadeIn() togetherWith fadeOut()
-                            },
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
                             label = "main_transition"
                         ) { screen ->
                             when (screen) {
@@ -156,7 +175,7 @@ fun CapyChatApp(
                                     onOpenPrivacy = { navigate(Screen.PRIVACY) },
                                     onOpenSettings = { navigate(Screen.SETTINGS) },
                                     onOpenHelp = { navigate(Screen.HELP) },
-                                    onOpenCIA = { 
+                                    onOpenCIA = {
                                         navigate(Screen.CIA)
                                         showFeedback("CIA ACCESS GRANTED")
                                     }
@@ -190,6 +209,10 @@ fun CapyChatApp(
                                         contactName = selectedChatName,
                                         contactEmoji = selectedChatEmoji,
                                         messages = messages,
+                                        typingUsers = typingUsers,
+                                        roomId = chatId,
+                                        isPrivate = selectedChatIsPrivate,
+                                        currentUserId = loggedInState?.uid ?: "",
                                         onBackClick = {
                                             chatViewModel.stopObservingMessages()
                                             navigate(Screen.CONVERSATIONS)
@@ -198,6 +221,9 @@ fun CapyChatApp(
                                             loggedInState?.let { state ->
                                                 chatViewModel.sendMessage(chatId, selectedChatIsPrivate, text, state.uid, state.username)
                                             }
+                                        },
+                                        onUserTyping = { roomId, isPrivate, userId ->
+                                            chatViewModel.onUserTyping(roomId, isPrivate, userId)
                                         }
                                     )
                                 } ?: navigate(Screen.CONVERSATIONS)
@@ -219,11 +245,12 @@ fun CapyChatApp(
                             else -> {}
                         }
                     }
-                    
+
                     SnackbarHost(hostState = snackbarHostState)
                 }
             }
 
+            // Dialog criar sala
             if (showCreateRoomDialog) {
                 AlertDialog(
                     onDismissRequest = { showCreateRoomDialog = false },
@@ -263,6 +290,7 @@ fun CapyChatApp(
                 )
             }
 
+            // Dialog logout
             if (showLogoutDialog) {
                 CapyConfirmDialog(
                     title = "Sair da conta",

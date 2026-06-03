@@ -16,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -24,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.andreilima.capychat.data.model.Message
+import com.andreilima.capychat.data.model.MessageStatus
 import com.andreilima.capychat.ui.components.CapyEmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,14 +32,21 @@ fun ChatScreen(
     contactName: String,
     contactEmoji: String,
     messages: List<Message>,
+    isContactOnline: Boolean = false,
+    typingUsers: List<String> = emptyList(),
+    roomId: String = "",
+    isPrivate: Boolean = false,
+    currentUserId: String = "",
     onBackClick: () -> Unit,
     onSendMessage: (String) -> Unit,
+    onUserTyping: ((String, Boolean, String) -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
     var messageText by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
+    // Scroll automático ao receber nova mensagem
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.lastIndex)
@@ -67,11 +74,22 @@ fun ChatScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                "online agora",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            // Indicador de digitando ou online
+                            val statusText = when {
+                                typingUsers.isNotEmpty() -> "digitando..."
+                                isContactOnline -> "online agora"
+                                else -> ""
+                            }
+                            AnimatedVisibility(visible = statusText.isNotEmpty()) {
+                                Text(
+                                    text = statusText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (typingUsers.isNotEmpty())
+                                        MaterialTheme.colorScheme.tertiary
+                                    else
+                                        MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
                 },
@@ -143,10 +161,16 @@ fun ChatScreen(
                     IconButton(onClick = { /* Anexo */ }) {
                         Icon(Icons.Outlined.AddCircleOutline, null, tint = MaterialTheme.colorScheme.primary)
                     }
-                    
+
                     OutlinedTextField(
                         value = messageText,
-                        onValueChange = { messageText = it },
+                        onValueChange = { newValue ->
+                            messageText = newValue
+                            // Dispara o indicador de digitando
+                            if (newValue.isNotBlank() && roomId.isNotEmpty() && currentUserId.isNotEmpty()) {
+                                onUserTyping?.invoke(roomId, isPrivate, currentUserId)
+                            }
+                        },
                         placeholder = { Text("Mensagem") },
                         modifier = Modifier
                             .weight(1f)
@@ -160,11 +184,11 @@ fun ChatScreen(
                             focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         )
                     )
-                    
+
                     Spacer(Modifier.width(8.dp))
-                    
+
                     val hasText = messageText.isNotBlank()
-                    
+
                     Box(contentAlignment = Alignment.Center) {
                         FloatingActionButton(
                             onClick = {
@@ -219,7 +243,7 @@ fun ChatScreen(
                 ) {
                     itemsIndexed(messages, key = { _, msg -> msg.id }) { index, message ->
                         val isPreviousFromSame = index > 0 && messages[index - 1].sender == message.sender
-                        
+
                         MessageBubble(
                             message = message,
                             showName = !message.isMine && !isPreviousFromSame,
@@ -287,12 +311,39 @@ fun MessageBubble(
                         fontSize = 15.sp,
                         lineHeight = 20.sp
                     )
-                    Text(
-                        text = message.time,
-                        fontSize = 10.sp,
-                        color = (if (message.isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.6f),
-                        modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
-                    )
+                    // Hora + tick de leitura
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = message.time,
+                            fontSize = 10.sp,
+                            color = (if (message.isMine) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.6f)
+                        )
+                        // Ticks de confirmação (só nas mensagens minhas)
+                        if (message.isMine) {
+                            val tickColor = when (message.status) {
+                                MessageStatus.READ -> Color(0xFF4FC3F7)       // azul
+                                MessageStatus.DELIVERED -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                MessageStatus.SENT -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                            }
+                            val tickText = when (message.status) {
+                                MessageStatus.SENT -> "✓"
+                                MessageStatus.DELIVERED, MessageStatus.READ -> "✓✓"
+                            }
+                            Text(
+                                text = tickText,
+                                fontSize = 10.sp,
+                                color = tickColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }

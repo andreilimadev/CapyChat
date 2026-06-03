@@ -6,6 +6,7 @@ import com.andreilima.capychat.data.firebase.FirebaseService
 import com.andreilima.capychat.data.model.*
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -27,7 +28,7 @@ class ChatViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // Buscas
+    // Busca de usuários
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
@@ -37,11 +38,42 @@ class ChatViewModel : ViewModel() {
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
 
+    // Digitando
+    private val _typingUsers = MutableStateFlow<List<String>>(emptyList())
+    val typingUsers: StateFlow<List<String>> = _typingUsers.asStateFlow()
+
+    // Perfil do usuário logado
+    private val _currentUserProfile = MutableStateFlow<FirestoreUser?>(null)
+    val currentUserProfile: StateFlow<FirestoreUser?> = _currentUserProfile.asStateFlow()
+
+    // Notificações não lidas
+    private val _unreadNotificationsCount = MutableStateFlow(0)
+    val unreadNotificationsCount: StateFlow<Int> = _unreadNotificationsCount.asStateFlow()
+
+    // Estado atual do chat aberto
+    private var currentRoomId: String? = null
+    private var currentRoomIsPrivate: Boolean = false
+    private var currentUserId: String? = null
+
     private var messagesJob: Job? = null
+    private var typingJob: Job? = null
+    private var typingResetJob: Job? = null
     private var searchJob: Job? = null
 
+    init {
+        startSearchQueryObservation()
+    }
+
+    // =========================================================
+    // USER SEARCH
+    // =========================================================
+
+    fun onSearchQueryChange(newQuery: String) {
+        _searchQuery.value = newQuery
+    }
+
     @OptIn(FlowPreview::class)
-    fun startSearchQueryObservation() {
+    private fun startSearchQueryObservation() {
         viewModelScope.launch {
             _searchQuery
                 .debounce(500)
@@ -56,18 +88,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    init {
-        startSearchQueryObservation()
-    }
-
-    // =========================================================
-    // USER SEARCH
-    // =========================================================
-
-    fun onSearchQueryChange(newQuery: String) {
-        _searchQuery.value = newQuery
-    }
-
     private fun performSearch(query: String) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
@@ -79,10 +99,56 @@ class ChatViewModel : ViewModel() {
     }
 
     // =========================================================
+    // PERFIL
+    // =========================================================
+
+    fun loadUserProfile(uid: String) {
+        viewModelScope.launch {
+            FirebaseService.observeUser(uid).collect { user ->
+                _currentUserProfile.value = user
+            }
+        }
+    }
+
+    fun updateProfile(
+        uid: String,
+        displayName: String,
+        bio: String,
+        photoUrl: String? = null,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = FirebaseService.updateUserProfile(uid, displayName, bio, photoUrl)
+            _isLoading.value = false
+            result.onSuccess { onSuccess() }
+            result.onFailure { onError(it.message ?: "Erro ao atualizar perfil") }
+        }
+    }
+
+    // =========================================================
+    // STATUS ONLINE
+    // =========================================================
+
+    fun setOnline(uid: String) {
+        viewModelScope.launch {
+            FirebaseService.setOnlineStatus(uid, true)
+        }
+    }
+
+    fun setOffline(uid: String) {
+        viewModelScope.launch {
+            FirebaseService.setOnlineStatus(uid, false)
+        }
+    }
+
+    // =========================================================
     // ROOMS
     // =========================================================
 
     fun startObservingRooms(uid: String) {
+        currentUserId = uid
         viewModelScope.launch {
             FirebaseService.observeRooms(uid).collect { pairs ->
                 _rooms.value = pairs.map { (id, room) ->
@@ -101,6 +167,10 @@ class ChatViewModel : ViewModel() {
         isPrivate: Boolean,
         currentUserId: String
     ) {
+        this.currentRoomId = roomId
+        this.currentRoomIsPrivate = isPrivate
+        this.currentUserId = currentUserId
+
         messagesJob?.cancel()
         messagesJob = viewModelScope.launch {
             FirebaseService.observeMessages(roomId, isPrivate)
@@ -108,13 +178,81 @@ class ChatViewModel : ViewModel() {
                     _messages.value = pairs.map { (id, msg) ->
                         msg.toMessage(id, currentUserId)
                     }
+                    // Marcar últimas mensagens como lidas automaticamente
+                    pairs.takeLast(5).forEach { (id, msg) ->
+                        if (msg.senderId != currentUserId && !msg.readBy.containsKey(currentUserId)) {
+                            FirebaseService.markMessageAsRead(roomId, isPrivate, id, currentUserId)
+                        }
+                    }
                 }
+        }
+
+        // Observar quem está digitando
+        typingJob?.cancel()
+        typingJob = viewModelScope.launch {
+            FirebaseService.observeTyping(roomId, isPrivate, currentUserId)
+                .collect { _typingUsers.value = it }
         }
     }
 
     fun stopObservingMessages() {
+        // Parar de digitar ao sair
+        currentRoomId?.let { roomId ->
+            currentUserId?.let { uid ->
+                viewModelScope.launch {
+                    FirebaseService.setTyping(roomId, currentRoomIsPrivate, uid, false)
+                }
+            }
+        }
         messagesJob?.cancel()
+        typingJob?.cancel()
+        typingResetJob?.cancel()
         _messages.value = emptyList()
+        _typingUsers.value = emptyList()
+        currentRoomId = null
+    }
+
+    // =========================================================
+    // DIGITANDO
+    // =========================================================
+
+    fun onUserTyping(roomId: String, isPrivate: Boolean, userId: String) {
+        viewModelScope.launch {
+            FirebaseService.setTyping(roomId, isPrivate, userId, true)
+        }
+        // Reset automático após 3 segundos sem digitar
+        typingResetJob?.cancel()
+        typingResetJob = viewModelScope.launch {
+            delay(3000)
+            FirebaseService.setTyping(roomId, isPrivate, userId, false)
+        }
+    }
+
+    // =========================================================
+    // SEND MESSAGE
+    // =========================================================
+
+    fun sendMessage(
+        roomId: String,
+        isPrivate: Boolean,
+        text: String,
+        senderId: String,
+        senderName: String
+    ) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            // Parar indicador de digitando ao enviar
+            FirebaseService.setTyping(roomId, isPrivate, senderId, false)
+            typingResetJob?.cancel()
+
+            FirebaseService.sendMessage(
+                roomId = roomId,
+                isPrivate = isPrivate,
+                text = text.trim(),
+                senderId = senderId,
+                senderName = senderName
+            )
+        }
     }
 
     // =========================================================
@@ -151,27 +289,8 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    fun sendMessage(
-        roomId: String,
-        isPrivate: Boolean,
-        text: String,
-        senderId: String,
-        senderName: String
-    ) {
-        if (text.isBlank()) return
-        viewModelScope.launch {
-            FirebaseService.sendMessage(
-                roomId = roomId,
-                isPrivate = isPrivate,
-                text = text.trim(),
-                senderId = senderId,
-                senderName = senderName
-            )
-        }
-    }
-
     // =========================================================
-    // CREATE / DM
+    // CREATE ROOM / DM
     // =========================================================
 
     fun startPrivateChat(
@@ -182,18 +301,15 @@ class ChatViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             _isLoading.value = true
-            // Criar um FirestoreUser mínimo para a função do FirebaseService
             val fullTarget = FirestoreUser(
                 uid = targetUser.uid,
                 username = targetUser.username
             )
-            
             val result = FirebaseService.createPrivateChat(
                 currentUserId = currentUserId,
                 currentUserName = currentUserName,
                 targetUser = fullTarget
             )
-            
             _isLoading.value = false
             result.onSuccess { roomId ->
                 onCreated(roomId, targetUser.username)
@@ -220,5 +336,35 @@ class ChatViewModel : ViewModel() {
                 onCreated(roomId)
             }
         }
+    }
+
+    // =========================================================
+    // NOTIFICAÇÕES
+    // =========================================================
+
+    fun startObservingNotifications(userId: String) {
+        viewModelScope.launch {
+            FirebaseService.observeNotifications(userId).collect { list ->
+                _unreadNotificationsCount.value = list.size
+            }
+        }
+    }
+
+    fun markNotificationRead(notificationId: String) {
+        viewModelScope.launch {
+            FirebaseService.markNotificationAsRead(notificationId)
+        }
+    }
+
+    // =========================================================
+    // LIFECYCLE
+    // =========================================================
+
+    override fun onCleared() {
+        super.onCleared()
+        messagesJob?.cancel()
+        typingJob?.cancel()
+        typingResetJob?.cancel()
+        searchJob?.cancel()
     }
 }
