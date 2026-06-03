@@ -316,6 +316,62 @@ class ChatViewModel : ViewModel() {
             }
         }
     }
+    // =========================================================
+// ROOM ACTIONS
+// =========================================================
+
+    fun muteRoom(
+        roomId: String,
+        isPrivate: Boolean,
+        userId: String,
+        muted: Boolean,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            FirebaseService.muteRoom(roomId, isPrivate, userId, muted)
+            onDone()
+        }
+    }
+
+    fun pinRoom(
+        roomId: String,
+        isPrivate: Boolean,
+        userId: String,
+        pinned: Boolean,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            FirebaseService.pinRoom(roomId, isPrivate, userId, pinned)
+            onDone()
+        }
+    }
+
+    fun clearMessages(
+        roomId: String,
+        isPrivate: Boolean,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            FirebaseService.clearMessages(roomId, isPrivate)
+            _isLoading.value = false
+            onDone()
+        }
+    }
+
+    fun reportBug(
+        userId: String,
+        description: String,
+        roomId: String? = null,
+        onDone: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            FirebaseService.reportBug(userId, description, roomId)
+            _isLoading.value = false
+            onDone()
+        }
+    }
 
     fun createPublicRoom(
         name: String,

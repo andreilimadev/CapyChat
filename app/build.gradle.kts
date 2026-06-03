@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)   // só este, sem kotlin.android
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
 }
 
@@ -32,8 +32,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    // REMOVIDO: kotlinOptions { jvmTarget = "11" } — causa erro sem kotlin.android
-
     buildFeatures {
         compose = true
     }
@@ -58,6 +56,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+
+    // DataStore
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

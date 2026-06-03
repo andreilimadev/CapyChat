@@ -23,6 +23,7 @@ import com.andreilima.capychat.ui.theme.CapyChatTheme
 import com.andreilima.capychat.ui.viewmodel.AuthState
 import com.andreilima.capychat.ui.viewmodel.AuthViewModel
 import com.andreilima.capychat.ui.viewmodel.ChatViewModel
+import com.andreilima.capychat.ui.viewmodel.PreferencesViewModel
 import kotlinx.coroutines.launch
 
 enum class Screen {
@@ -33,11 +34,14 @@ enum class Screen {
 fun CapyChatApp(
     authViewModel: AuthViewModel = viewModel(),
     chatViewModel: ChatViewModel = viewModel(),
+    prefsViewModel: PreferencesViewModel = viewModel()
 ) {
-    var darkTheme by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+
+    val darkTheme by prefsViewModel.darkTheme.collectAsStateWithLifecycle()
 
     CapyChatTheme(darkTheme = darkTheme) {
         val authState by authViewModel.state.collectAsStateWithLifecycle()
@@ -64,7 +68,6 @@ fun CapyChatApp(
             scope.launch { snackbarHostState.showSnackbar(message) }
         }
 
-        // Gerencia status online/offline pelo ciclo de vida do app
         DisposableEffect(lifecycleOwner) {
             val observer = LifecycleEventObserver { _, event ->
                 val uid = FirebaseService.auth.currentUser?.uid ?: return@LifecycleEventObserver
@@ -235,9 +238,8 @@ fun CapyChatApp(
                                 } ?: navigate(Screen.STATUS)
                             }
                             Screen.PRIVACY -> PrivacyScreen(onBackClick = { navigate(Screen.PROFILE) })
+                            // ✅ SettingsScreen sem parâmetros de tema — pega do ViewModel interno
                             Screen.SETTINGS -> SettingsScreen(
-                                darkTheme = darkTheme,
-                                onThemeChange = { darkTheme = it },
                                 onBackClick = { navigate(Screen.PROFILE) }
                             )
                             Screen.HELP -> HelpScreen(onBackClick = { navigate(Screen.PROFILE) })
@@ -250,7 +252,6 @@ fun CapyChatApp(
                 }
             }
 
-            // Dialog criar sala
             if (showCreateRoomDialog) {
                 AlertDialog(
                     onDismissRequest = { showCreateRoomDialog = false },
@@ -290,7 +291,6 @@ fun CapyChatApp(
                 )
             }
 
-            // Dialog logout
             if (showLogoutDialog) {
                 CapyConfirmDialog(
                     title = "Sair da conta",

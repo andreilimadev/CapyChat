@@ -7,28 +7,29 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andreilima.capychat.ui.components.CapyTopBar
+import com.andreilima.capychat.ui.viewmodel.PreferencesViewModel
 
 @Composable
 fun PrivacyScreen(
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    prefsViewModel: PreferencesViewModel = viewModel()
 ) {
-    var showProfileByTag by rememberSaveable { mutableStateOf(true) }
-    var showOnlineStatus by rememberSaveable { mutableStateOf(true) }
-    var allowDMs by rememberSaveable { mutableStateOf(true) }
-    var readReceipts by rememberSaveable { mutableStateOf(true) }
+    val showOnlineStatus by prefsViewModel.showOnlineStatus.collectAsStateWithLifecycle()
+    val showReadReceipts by prefsViewModel.showReadReceipts.collectAsStateWithLifecycle()
+    val showLastSeen     by prefsViewModel.showLastSeen.collectAsStateWithLifecycle()
+
+    // allowDMs e showProfileByTag ainda não têm backend — ficam locais por ora
+    var showProfileByTag by remember { mutableStateOf(true) }
+    var allowDMs         by remember { mutableStateOf(true) }
 
     Scaffold(
-        topBar = {
-            CapyTopBar(
-                title = "Privacidade",
-                onBackClick = onBackClick
-            )
-        }
+        topBar = { CapyTopBar(title = "Privacidade", onBackClick = onBackClick) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -52,12 +53,17 @@ fun PrivacyScreen(
                 checked = showProfileByTag,
                 onCheckedChange = { showProfileByTag = it }
             )
-
             PrivacySwitchRow(
                 title = "Mostrar status online",
                 description = "Se desativado, você também não verá o status de outros.",
                 checked = showOnlineStatus,
-                onCheckedChange = { showOnlineStatus = it }
+                onCheckedChange = { prefsViewModel.setShowOnlineStatus(it) }
+            )
+            PrivacySwitchRow(
+                title = "Mostrar último acesso",
+                description = "Exibe quando você esteve online pela última vez.",
+                checked = showLastSeen,
+                onCheckedChange = { prefsViewModel.setShowLastSeen(it) }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
@@ -71,21 +77,20 @@ fun PrivacyScreen(
             )
 
             PrivacySwitchRow(
-                title = "Permitir Mensagens Diretas (DMs)",
+                title = "Permitir Mensagens Diretas",
                 description = "Controla se desconhecidos podem iniciar chats com você.",
                 checked = allowDMs,
                 onCheckedChange = { allowDMs = it }
             )
-
             PrivacySwitchRow(
                 title = "Confirmações de leitura",
                 description = "Os famosos 'checks' de mensagem lida.",
-                checked = readReceipts,
-                onCheckedChange = { readReceipts = it }
+                checked = showReadReceipts,
+                onCheckedChange = { prefsViewModel.setShowReadReceipts(it) }
             )
-            
+
             Spacer(modifier = Modifier.height(32.dp))
-            
+
             Text(
                 "Segurança",
                 style = MaterialTheme.typography.labelMedium,
@@ -93,9 +98,9 @@ fun PrivacyScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
+
             Surface(
-                onClick = { /* Bloqueados */ },
+                onClick = { },
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
             ) {
@@ -117,28 +122,16 @@ private fun PrivacySwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surface
-    ) {
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange
-            )
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
         }
     }
 }

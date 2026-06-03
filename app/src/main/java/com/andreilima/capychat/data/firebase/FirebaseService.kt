@@ -242,6 +242,81 @@ object FirebaseService {
             Result.failure(e)
         }
     }
+    // =========================================================
+// ROOM PREFERENCES (Silenciar / Fixar / Limpar)
+// =========================================================
+
+    suspend fun muteRoom(
+        roomId: String,
+        isPrivate: Boolean,
+        userId: String,
+        muted: Boolean
+    ): Result<Unit> {
+        return try {
+            val collection = if (isPrivate) "private_rooms" else "public_rooms"
+            db.collection(collection).document(roomId)
+                .update("mutedBy.$userId", muted)
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pinRoom(
+        roomId: String,
+        isPrivate: Boolean,
+        userId: String,
+        pinned: Boolean
+    ): Result<Unit> {
+        return try {
+            val collection = if (isPrivate) "private_rooms" else "public_rooms"
+            db.collection(collection).document(roomId)
+                .update("pinnedBy.$userId", pinned)
+                .await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun clearMessages(
+        roomId: String,
+        isPrivate: Boolean
+    ): Result<Unit> {
+        return try {
+            val collection = if (isPrivate) "private_rooms" else "public_rooms"
+            val messagesRef = db.collection(collection).document(roomId).collection("messages")
+            val batch = db.batch()
+            val docs = messagesRef.get().await()
+            docs.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun reportBug(
+        userId: String,
+        description: String,
+        roomId: String? = null
+    ): Result<Unit> {
+        return try {
+            val report = mapOf(
+                "userId" to userId,
+                "description" to description,
+                "roomId" to (roomId ?: ""),
+                "timestamp" to System.currentTimeMillis(),
+                "appVersion" to "1.0",
+                "resolved" to false
+            )
+            db.collection("bug_reports").add(report).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     // =========================================================
     // TYPING INDICATOR
