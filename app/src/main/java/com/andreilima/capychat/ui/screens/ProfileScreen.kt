@@ -176,7 +176,6 @@ fun ProfileScreen(
                 saveError?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-
                 Button(
                     onClick = {
                         val uid = userProfile?.uid ?: return@Button

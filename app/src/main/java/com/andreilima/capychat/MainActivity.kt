@@ -14,6 +14,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : ComponentActivity() {
 
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* permissão concedida ou negada — sem ação necessária */ }

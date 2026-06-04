@@ -144,20 +144,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    fun updateProfile(
-        uid: String, displayName: String, bio: String,
-        avatarEmoji: String = "🐾", photoUrl: String? = null,
-        onSuccess: () -> Unit, onError: (String) -> Unit
-    ) {
-        viewModelScope.launch {
-            _profileState.update { it.copy(isSaving = true) }
-            val result = FirebaseService.updateUserProfile(uid, displayName, bio, avatarEmoji, photoUrl)
-            _profileState.update { it.copy(isSaving = false, saveSuccess = result.isSuccess) }
-            result.onSuccess { onSuccess() }
-            result.onFailure { onError(it.message ?: "Erro ao atualizar perfil") }
-        }
-    }
-
     // =========================================================
     // ONLINE STATUS
     // =========================================================
@@ -443,6 +429,19 @@ class ChatViewModel : ViewModel() {
     fun deleteMessage(roomId: String, isPrivate: Boolean, messageId: String) {
         viewModelScope.launch {
             FirebaseService.deleteMessage(roomId, isPrivate, messageId)
+        }
+    }
+    fun updateProfile(
+        uid: String, displayName: String, bio: String,
+        avatarEmoji: String = "🐾", photoUrl: String? = null,
+        onSuccess: () -> Unit, onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _profileState.update { it.copy(isSaving = true) }
+            val result = FirebaseService.updateUserProfile(uid, displayName, bio, avatarEmoji, photoUrl)
+            _profileState.update { it.copy(isSaving = false, saveSuccess = result.isSuccess) }
+            result.onSuccess { onSuccess() }
+            result.onFailure { onError(it.message ?: "Erro ao atualizar perfil") }
         }
     }
     // =========================================================
