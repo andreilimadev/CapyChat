@@ -47,7 +47,7 @@ fun ChatScreen(
     currentUserId: String = "",
     onBackClick: () -> Unit,
     onSendMessage: (String, Message?) -> Unit,
-    onReactToMessage: (String, String) -> Unit = { _, _ -> },
+    onReactToMessage: (String, String, String?) -> Unit = { _, _, _ -> },
     onUserTyping: ((String, Boolean, String) -> Unit)? = null,
     chatViewModel: ChatViewModel = viewModel()
 ) {
@@ -57,7 +57,6 @@ fun ChatScreen(
     var replyingTo by remember { mutableStateOf<Message?>(null) }
     val listState = rememberLazyListState()
 
-    // Busca dentro da conversa
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val filteredMessages = remember(messages, searchQuery) {
@@ -66,7 +65,6 @@ fun ChatScreen(
     }
     val displayMessages = if (showSearch && searchQuery.isNotBlank()) filteredMessages else messages
 
-    // Dialogs
     var showClearDialog by remember { mutableStateOf(false) }
     var showBugDialog by remember { mutableStateOf(false) }
     var bugDescription by remember { mutableStateOf("") }
@@ -79,7 +77,6 @@ fun ChatScreen(
         }
     }
 
-    // Dialog limpar conversa
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -101,7 +98,6 @@ fun ChatScreen(
         )
     }
 
-    // Dialog reportar bug
     if (showBugDialog) {
         AlertDialog(
             onDismissRequest = { showBugDialog = false },
@@ -188,7 +184,6 @@ fun ChatScreen(
                         }
                     },
                     actions = {
-                        // Lupa — abre barra de busca
                         IconButton(onClick = {
                             showSearch = !showSearch
                             if (!showSearch) searchQuery = ""
@@ -209,7 +204,7 @@ fun ChatScreen(
                                 DropdownMenuItem(
                                     text = { Text("Ver mídia") },
                                     leadingIcon = { Icon(Icons.Outlined.PermMedia, null) },
-                                    onClick = { showMenu = false /* Bloco 4 */ }
+                                    onClick = { showMenu = false }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Silenciar") },
@@ -252,44 +247,44 @@ fun ChatScreen(
                     )
                 )
 
-                // Barra de busca animada
                 AnimatedVisibility(
                     visible = showSearch,
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut()
                 ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Buscar na conversa...") },
-                        leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Outlined.Clear, null)
+                    Column {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Buscar na conversa...") },
+                            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                            trailingIcon = {
+                                if (searchQuery.isNotBlank()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(Icons.Outlined.Clear, null)
+                                    }
                                 }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(24.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
                         )
-                    )
-                    // Contador de resultados
-                    if (searchQuery.isNotBlank()) {
-                        Text(
-                            text = "${filteredMessages.size} resultado(s)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 20.dp, bottom = 4.dp)
-                        )
+                        if (searchQuery.isNotBlank()) {
+                            Text(
+                                text = "${filteredMessages.size} resultado(s)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 20.dp, bottom = 4.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -439,7 +434,10 @@ fun ChatScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    itemsIndexed(displayMessages, key = { _, msg -> msg.id }) { index, message ->
+                    itemsIndexed(
+                        displayMessages,
+                        key = { index, msg -> msg.id.ifBlank { "msg_$index" } }
+                    ) { index, message ->
                         val isPreviousFromSame = index > 0 && displayMessages[index - 1].sender == message.sender
                         val isHighlighted = showSearch && searchQuery.isNotBlank() &&
                                 message.text.contains(searchQuery, ignoreCase = true)
@@ -449,8 +447,12 @@ fun ChatScreen(
                             showName = !message.isMine && !isPreviousFromSame,
                             isGrouped = isPreviousFromSame,
                             isHighlighted = isHighlighted,
+                            currentUserId = currentUserId,
                             onReply = { replyingTo = it },
-                            onReact = { msg, emoji -> onReactToMessage(msg.id, emoji) }
+                            onReact = { msg, emoji ->
+                                val currentEmoji = msg.reactions[currentUserId]
+                                onReactToMessage(msg.id, emoji, currentEmoji)
+                            }
                         )
                     }
                 }
@@ -466,6 +468,7 @@ fun MessageBubble(
     showName: Boolean,
     isGrouped: Boolean,
     isHighlighted: Boolean = false,
+    currentUserId: String = "",
     onReply: (Message) -> Unit = {},
     onReact: (Message, String) -> Unit = { _, _ -> }
 ) {
@@ -477,6 +480,7 @@ fun MessageBubble(
 
     val reactionEmojis = listOf("❤️", "😂", "👍", "😮", "😢", "🔥")
     var showActionMenu by remember { mutableStateOf(false) }
+    val myCurrentEmoji = message.reactions[currentUserId]
 
     Row(
         modifier = Modifier
@@ -520,7 +524,6 @@ fun MessageBubble(
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
 
-                        // Citação de reply
                         if (message.replyToText.isNotBlank()) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -604,21 +607,26 @@ fun MessageBubble(
                     }
                 }
 
-                // Menu flutuante de ações
                 DropdownMenu(
                     expanded = showActionMenu,
                     onDismissRequest = { showActionMenu = false }
                 ) {
-                    // Linha de emojis
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         reactionEmojis.forEach { emoji ->
+                            val isSelected = emoji == myCurrentEmoji
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
+                                    .background(
+                                        if (isSelected)
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        else
+                                            Color.Transparent
+                                    )
                                     .clickable {
                                         onReact(message, emoji)
                                         showActionMenu = false
@@ -641,7 +649,6 @@ fun MessageBubble(
                 }
             }
 
-            // Pills de reações existentes
             if (message.reactions.isNotEmpty()) {
                 val grouped = message.reactions.values
                     .groupBy { it }
@@ -651,15 +658,24 @@ fun MessageBubble(
                     modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
                 ) {
                     grouped.forEach { (emoji, count) ->
+                        val isMine = myCurrentEmoji == emoji
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            tonalElevation = 2.dp
+                            color = if (isMine)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant,
+                            tonalElevation = if (isMine) 4.dp else 2.dp,
+                            modifier = Modifier.clickable { onReact(message, emoji) }
                         ) {
                             Text(
                                 text = if (count > 1) "$emoji $count" else emoji,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                color = if (isMine)
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

@@ -6,6 +6,7 @@ import com.andreilima.capychat.data.model.FirestoreRoom
 import com.andreilima.capychat.data.model.FirestoreStatus
 import com.andreilima.capychat.data.model.FirestoreUser
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.PersistentCacheSettings
@@ -70,15 +71,20 @@ object FirebaseService {
         }
     }
 
-    fun logout() {
+    // ✅ CORRIGIDO: agora é suspend e espera o update antes de fazer signOut
+    suspend fun logout() {
         val uid = auth.currentUser?.uid
         if (uid != null) {
-            db.collection("users").document(uid).update(
-                mapOf(
-                    "isOnline" to false,
-                    "lastSeen" to System.currentTimeMillis()
-                )
-            )
+            try {
+                db.collection("users").document(uid).update(
+                    mapOf(
+                        "isOnline" to false,
+                        "lastSeen" to System.currentTimeMillis()
+                    )
+                ).await()
+            } catch (e: Exception) {
+                // Silencioso — mas ao menos tentou aguardar
+            }
         }
         auth.signOut()
     }
@@ -243,9 +249,10 @@ object FirebaseService {
             Result.failure(e)
         }
     }
+
     // =========================================================
-// ROOM PREFERENCES (Silenciar / Fixar / Limpar)
-// =========================================================
+    // ROOM PREFERENCES
+    // =========================================================
 
     suspend fun muteRoom(
         roomId: String,
@@ -428,6 +435,32 @@ object FirebaseService {
         }
     }
 
+    // ✅ CORRIGIDO: toggle de reação — mesmo emoji remove, emoji diferente substitui
+    suspend fun reactToMessage(
+        roomId: String,
+        isPrivate: Boolean,
+        messageId: String,
+        userId: String,
+        emoji: String,
+        currentEmoji: String? = null
+    ) {
+        try {
+            val collection = if (isPrivate) "private_rooms" else "public_rooms"
+            val docRef = db.collection(collection).document(roomId)
+                .collection("messages").document(messageId)
+
+            if (currentEmoji == emoji) {
+                // Mesmo emoji → remove a reação
+                docRef.update("reactions.$userId", FieldValue.delete()).await()
+            } else {
+                // Emoji novo ou diferente → adiciona/troca
+                docRef.update("reactions.$userId", emoji).await()
+            }
+        } catch (e: Exception) {
+            // Silencioso
+        }
+    }
+
     // =========================================================
     // STATUS
     // =========================================================
@@ -514,23 +547,6 @@ object FirebaseService {
         try {
             db.collection("notifications").document(notificationId)
                 .update("isRead", true)
-                .await()
-        } catch (e: Exception) {
-            // Silencioso
-        }
-    }
-    suspend fun reactToMessage(
-        roomId: String,
-        isPrivate: Boolean,
-        messageId: String,
-        userId: String,
-        emoji: String
-    ) {
-        try {
-            val collection = if (isPrivate) "private_rooms" else "public_rooms"
-            db.collection(collection).document(roomId)
-                .collection("messages").document(messageId)
-                .update("reactions.$userId", emoji)
                 .await()
         } catch (e: Exception) {
             // Silencioso

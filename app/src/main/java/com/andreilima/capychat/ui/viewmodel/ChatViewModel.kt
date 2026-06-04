@@ -28,7 +28,6 @@ class ChatViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // Busca de usuários
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
@@ -38,21 +37,17 @@ class ChatViewModel : ViewModel() {
     private val _isSearching = MutableStateFlow(false)
     val isSearching = _isSearching.asStateFlow()
 
-    // Digitando
     private val _typingUsers = MutableStateFlow<List<String>>(emptyList())
     val typingUsers: StateFlow<List<String>> = _typingUsers.asStateFlow()
 
-    // Perfil do usuário logado
     private val _currentUserProfile = MutableStateFlow<FirestoreUser?>(null)
     val currentUserProfile: StateFlow<FirestoreUser?> = _currentUserProfile.asStateFlow()
 
-    // Notificações não lidas
     private val _unreadNotificationsCount = MutableStateFlow(0)
     private val _notifications = MutableStateFlow<List<FirestoreNotification>>(emptyList())
     val notifications: StateFlow<List<FirestoreNotification>> = _notifications.asStateFlow()
     val unreadNotificationsCount: StateFlow<Int> = _unreadNotificationsCount.asStateFlow()
 
-    // Estado atual do chat aberto
     private var currentRoomId: String? = null
     private var currentRoomIsPrivate: Boolean = false
     private var currentUserId: String? = null
@@ -81,11 +76,8 @@ class ChatViewModel : ViewModel() {
                 .debounce(500)
                 .distinctUntilChanged()
                 .collect { query ->
-                    if (query.length >= 3) {
-                        performSearch(query)
-                    } else {
-                        _searchResults.value = emptyList()
-                    }
+                    if (query.length >= 3) performSearch(query)
+                    else _searchResults.value = emptyList()
                 }
         }
     }
@@ -135,14 +127,21 @@ class ChatViewModel : ViewModel() {
     // =========================================================
 
     fun setOnline(uid: String) {
-        viewModelScope.launch {
-            FirebaseService.setOnlineStatus(uid, true)
-        }
+        viewModelScope.launch { FirebaseService.setOnlineStatus(uid, true) }
     }
 
     fun setOffline(uid: String) {
+        viewModelScope.launch { FirebaseService.setOnlineStatus(uid, false) }
+    }
+
+    // =========================================================
+    // LOGOUT — ✅ CORRIGIDO: agora aguarda o status ser salvo
+    // =========================================================
+
+    fun logout(onDone: () -> Unit) {
         viewModelScope.launch {
-            FirebaseService.setOnlineStatus(uid, false)
+            FirebaseService.logout()
+            onDone()
         }
     }
 
@@ -154,9 +153,7 @@ class ChatViewModel : ViewModel() {
         currentUserId = uid
         viewModelScope.launch {
             FirebaseService.observeRooms(uid).collect { pairs ->
-                _rooms.value = pairs.map { (id, room) ->
-                    room.toChatItem(id, uid)
-                }
+                _rooms.value = pairs.map { (id, room) -> room.toChatItem(id, uid) }
             }
         }
     }
@@ -181,8 +178,8 @@ class ChatViewModel : ViewModel() {
                     _messages.value = pairs.map { (id, msg) ->
                         msg.toMessage(id, currentUserId)
                     }
-                    // Marcar últimas mensagens como lidas automaticamente
-                    pairs.takeLast(5).forEach { (id, msg) ->
+                    // ✅ CORRIGIDO: marca TODAS as mensagens não lidas (não só as últimas 5)
+                    pairs.forEach { (id, msg) ->
                         if (msg.senderId != currentUserId && !msg.readBy.containsKey(currentUserId)) {
                             FirebaseService.markMessageAsRead(roomId, isPrivate, id, currentUserId)
                         }
@@ -190,7 +187,6 @@ class ChatViewModel : ViewModel() {
                 }
         }
 
-        // Observar quem está digitando
         typingJob?.cancel()
         typingJob = viewModelScope.launch {
             FirebaseService.observeTyping(roomId, isPrivate, currentUserId)
@@ -199,7 +195,6 @@ class ChatViewModel : ViewModel() {
     }
 
     fun stopObservingMessages() {
-        // Parar de digitar ao sair
         currentRoomId?.let { roomId ->
             currentUserId?.let { uid ->
                 viewModelScope.launch {
@@ -223,7 +218,6 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             FirebaseService.setTyping(roomId, isPrivate, userId, true)
         }
-        // Reset automático após 3 segundos sem digitar
         typingResetJob?.cancel()
         typingResetJob = viewModelScope.launch {
             delay(3000)
@@ -261,6 +255,23 @@ class ChatViewModel : ViewModel() {
     }
 
     // =========================================================
+    // REACTIONS — ✅ CORRIGIDO: passa currentEmoji para toggle
+    // =========================================================
+
+    fun reactToMessage(
+        roomId: String,
+        isPrivate: Boolean,
+        messageId: String,
+        userId: String,
+        emoji: String,
+        currentEmoji: String? = null
+    ) {
+        viewModelScope.launch {
+            FirebaseService.reactToMessage(roomId, isPrivate, messageId, userId, emoji, currentEmoji)
+        }
+    }
+
+    // =========================================================
     // STATUS
     // =========================================================
 
@@ -289,9 +300,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun markStatusAsViewed(statusId: String, userId: String) {
-        viewModelScope.launch {
-            FirebaseService.markStatusAsViewed(statusId, userId)
-        }
+        viewModelScope.launch { FirebaseService.markStatusAsViewed(statusId, userId) }
     }
 
     // =========================================================
@@ -306,56 +315,32 @@ class ChatViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             _isLoading.value = true
-            val fullTarget = FirestoreUser(
-                uid = targetUser.uid,
-                username = targetUser.username
-            )
-            val result = FirebaseService.createPrivateChat(
-                currentUserId = currentUserId,
-                currentUserName = currentUserName,
-                targetUser = fullTarget
-            )
+            val fullTarget = FirestoreUser(uid = targetUser.uid, username = targetUser.username)
+            val result = FirebaseService.createPrivateChat(currentUserId, currentUserName, fullTarget)
             _isLoading.value = false
-            result.onSuccess { roomId ->
-                onCreated(roomId, targetUser.username)
-            }
+            result.onSuccess { roomId -> onCreated(roomId, targetUser.username) }
         }
     }
-    // =========================================================
-// ROOM ACTIONS
-// =========================================================
 
-    fun muteRoom(
-        roomId: String,
-        isPrivate: Boolean,
-        userId: String,
-        muted: Boolean,
-        onDone: () -> Unit
-    ) {
+    // =========================================================
+    // ROOM ACTIONS
+    // =========================================================
+
+    fun muteRoom(roomId: String, isPrivate: Boolean, userId: String, muted: Boolean, onDone: () -> Unit) {
         viewModelScope.launch {
             FirebaseService.muteRoom(roomId, isPrivate, userId, muted)
             onDone()
         }
     }
 
-    fun pinRoom(
-        roomId: String,
-        isPrivate: Boolean,
-        userId: String,
-        pinned: Boolean,
-        onDone: () -> Unit
-    ) {
+    fun pinRoom(roomId: String, isPrivate: Boolean, userId: String, pinned: Boolean, onDone: () -> Unit) {
         viewModelScope.launch {
             FirebaseService.pinRoom(roomId, isPrivate, userId, pinned)
             onDone()
         }
     }
 
-    fun clearMessages(
-        roomId: String,
-        isPrivate: Boolean,
-        onDone: () -> Unit
-    ) {
+    fun clearMessages(roomId: String, isPrivate: Boolean, onDone: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             FirebaseService.clearMessages(roomId, isPrivate)
@@ -364,12 +349,7 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    fun reportBug(
-        userId: String,
-        description: String,
-        roomId: String? = null,
-        onDone: () -> Unit
-    ) {
+    fun reportBug(userId: String, description: String, roomId: String? = null, onDone: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             FirebaseService.reportBug(userId, description, roomId)
@@ -378,24 +358,13 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    fun createPublicRoom(
-        name: String,
-        emoji: String = "💬",
-        createdBy: String,
-        onCreated: (String) -> Unit
-    ) {
+    fun createPublicRoom(name: String, emoji: String = "💬", createdBy: String, onCreated: (String) -> Unit) {
         if (name.isBlank()) return
         viewModelScope.launch {
             _isLoading.value = true
-            val result = FirebaseService.createPublicRoom(
-                name = name.trim(),
-                createdBy = createdBy,
-                emoji = emoji
-            )
+            val result = FirebaseService.createPublicRoom(name.trim(), createdBy, emoji)
             _isLoading.value = false
-            result.onSuccess { roomId ->
-                onCreated(roomId)
-            }
+            result.onSuccess { roomId -> onCreated(roomId) }
         }
     }
 
@@ -413,8 +382,14 @@ class ChatViewModel : ViewModel() {
     }
 
     fun markNotificationRead(notificationId: String) {
+        viewModelScope.launch { FirebaseService.markNotificationAsRead(notificationId) }
+    }
+
+    fun markAllNotificationsRead() {
         viewModelScope.launch {
-            FirebaseService.markNotificationAsRead(notificationId)
+            _notifications.value
+                .filter { !it.isRead }
+                .forEach { FirebaseService.markNotificationAsRead(it.id) }
         }
     }
 
@@ -428,23 +403,5 @@ class ChatViewModel : ViewModel() {
         typingJob?.cancel()
         typingResetJob?.cancel()
         searchJob?.cancel()
-    }
-    fun markAllNotificationsRead() {
-        viewModelScope.launch {
-            _notifications.value
-                .filter { !it.isRead }
-                .forEach { FirebaseService.markNotificationAsRead(it.id) }
-        }
-    }
-    fun reactToMessage(
-        roomId: String,
-        isPrivate: Boolean,
-        messageId: String,
-        userId: String,
-        emoji: String
-    ) {
-        viewModelScope.launch {
-            FirebaseService.reactToMessage(roomId, isPrivate, messageId, userId, emoji)
-        }
     }
 }
