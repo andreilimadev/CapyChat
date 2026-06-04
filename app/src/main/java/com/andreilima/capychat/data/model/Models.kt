@@ -94,7 +94,8 @@ data class FirestoreRoom(
     val participantEmojis: Map<String, String> = emptyMap(), // ← NOVO
     val typingUsers: Map<String, Boolean> = emptyMap(),
     val pinnedBy: Map<String, Boolean> = emptyMap(),         // ← NOVO
-    val mutedBy: Map<String, Boolean> = emptyMap()           // ← NOVO
+    val mutedBy: Map<String, Boolean> = emptyMap(),
+    val unreadCount: Map<String, Int> = emptyMap()// ← NOVO
 )
 
 data class FirestoreMessage(
@@ -141,6 +142,7 @@ data class FirestoreNotification(
 // =========================================================
 
 fun FirestoreRoom.toChatItem(id: String, currentUserId: String): ChatItem {
+
     val timeStr = if (lastMessageAt > 0) {
         val cal = Calendar.getInstance()
         cal.timeInMillis = lastMessageAt
@@ -160,7 +162,8 @@ fun FirestoreRoom.toChatItem(id: String, currentUserId: String): ChatItem {
         author = "",
         avatarEmoji = avatarEmoji,
         lastTime = timeStr,
-        isPrivate = isPrivate
+        isPrivate = isPrivate,
+        unreadCount = unreadCount[currentUserId] ?: 0   // ← linha adicionada
     )
 }
 

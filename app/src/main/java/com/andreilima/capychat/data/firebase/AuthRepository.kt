@@ -2,6 +2,7 @@ package com.andreilima.capychat.data.firebase
 
 import com.andreilima.capychat.data.model.FirestoreUser
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -53,9 +54,8 @@ object AuthRepository {
         val uid = auth.currentUser?.uid
         if (uid != null) {
             try {
-                db.collection("users").document(uid).update(
-                    mapOf("isOnline" to false, "lastSeen" to System.currentTimeMillis())
-                ).await()
+                val token = FirebaseMessaging.getInstance().token.await()
+                db.collection("users").document(uid).update("fcmToken", token).await()
             } catch (e: Exception) { }
         }
         auth.signOut()

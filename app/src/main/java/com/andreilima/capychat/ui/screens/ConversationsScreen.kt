@@ -357,43 +357,79 @@ fun ChatListItem(chat: ChatItem, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Avatar
             Box(
                 modifier = Modifier
                     .size(52.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 Text(chat.avatarEmoji, fontSize = 24.sp)
             }
+
             Spacer(Modifier.width(12.dp))
+
+            // Nome + última mensagem
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        chat.name,
-                        fontWeight = FontWeight.SemiBold,
+                        text = chat.name,
+                        fontWeight = if (chat.unreadCount > 0) FontWeight.Bold else FontWeight.SemiBold,
                         fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                     Text(
-                        chat.lastTime,
+                        text = chat.lastTime,
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (chat.unreadCount > 0)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
-                Text(
-                    chat.lastMessage,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                Spacer(Modifier.height(2.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = chat.lastMessage,
+                        fontSize = 13.sp,
+                        color = if (chat.unreadCount > 0)
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = if (chat.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (chat.unreadCount > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                            Text(
+                                text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
+                                color = Color.White,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
             }
         }
     }

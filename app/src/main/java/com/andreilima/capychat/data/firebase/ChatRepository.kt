@@ -111,17 +111,35 @@ object ChatRepository {
                 replyToText = replyToText, replyToSender = replyToSender
             )
             val roomRef = db.collection(collection(isPrivate)).document(roomId)
+
+            // Salva a mensagem
             roomRef.collection("messages").add(message).await()
-            roomRef.update(mapOf("lastMessage" to text, "lastMessageAt" to System.currentTimeMillis())).await()
+
+            // Busca os participantes para incrementar unreadCount de cada um (exceto remetente)
+            val roomSnap = roomRef.get().await()
+            val room = roomSnap.toObject(FirestoreRoom::class.java)
+            val updates = mutableMapOf<String, Any>(
+                "lastMessage" to text,
+                "lastMessageAt" to System.currentTimeMillis()
+            )
+            room?.participants?.keys
+                ?.filter { it != senderId }
+                ?.forEach { uid ->
+                    val current = room.unreadCount[uid] ?: 0
+                    updates["unreadCount.$uid"] = current + 1
+                }
+
+            roomRef.update(updates).await()
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }
 
     suspend fun markMessageAsRead(roomId: String, isPrivate: Boolean, messageId: String, userId: String) {
         try {
-            db.collection(collection(isPrivate)).document(roomId)
-                .collection("messages").document(messageId)
+            val roomRef = db.collection(collection(isPrivate)).document(roomId)
+            roomRef.collection("messages").document(messageId)
                 .update("readBy.$userId", true).await()
+            roomRef.update("unreadCount.$userId", 0).await()
         } catch (e: Exception) { }
     }
 
