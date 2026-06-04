@@ -27,6 +27,7 @@ data class Message(
     val text: String = "",
     val isMine: Boolean = false,
     val time: String = "",
+    val timestamp: Long = 0L,
     val messageType: String = "text",
     val status: MessageStatus = MessageStatus.SENT,
     val reactions: Map<String, String> = emptyMap(),
@@ -187,6 +188,7 @@ fun FirestoreMessage.toMessage(id: String, currentUserId: String): Message {
         text = text,
         isMine = senderId == currentUserId,
         time = timeStr,
+        timestamp = timestamp,
         messageType = messageType,
         status = status,
         reactions = reactions,
@@ -224,3 +226,24 @@ fun FirestoreUser.toSearchItem(): UserSearchItem = UserSearchItem(
     isOnline = isOnline,
 
 )
+fun Long.toDateLabel(): String {
+    if (this <= 0L) return ""
+    val msgCal = Calendar.getInstance().apply { timeInMillis = this@toDateLabel }
+    val todayCal = Calendar.getInstance()
+    val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+
+    return when {
+        msgCal.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR) &&
+                msgCal.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR) -> "Hoje"
+
+        msgCal.get(Calendar.YEAR) == yesterdayCal.get(Calendar.YEAR) &&
+                msgCal.get(Calendar.DAY_OF_YEAR) == yesterdayCal.get(Calendar.DAY_OF_YEAR) -> "Ontem"
+
+        else -> String.format(
+            "%02d/%02d/%04d",
+            msgCal.get(Calendar.DAY_OF_MONTH),
+            msgCal.get(Calendar.MONTH) + 1,
+            msgCal.get(Calendar.YEAR)
+        )
+    }
+}

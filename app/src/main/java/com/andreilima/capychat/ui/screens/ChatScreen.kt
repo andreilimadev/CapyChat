@@ -1,13 +1,17 @@
 package com.andreilima.capychat.ui.screens
 
 import android.net.Uri
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,11 +21,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andreilima.capychat.data.firebase.MediaRepository
 import com.andreilima.capychat.data.model.Message
+import com.andreilima.capychat.data.model.toDateLabel
 import com.andreilima.capychat.ui.chat.*
 import com.andreilima.capychat.ui.components.CapyEmptyState
 import com.andreilima.capychat.ui.viewmodel.ChatViewModel
+import com.andreilima.capychat.ui.state.UiState
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +47,7 @@ fun ChatScreen(
     onUserTyping: ((String, Boolean, String) -> Unit)? = null,
     chatViewModel: ChatViewModel = viewModel()
 ) {
-    var uploadProgress by remember { mutableStateOf<Int?>(null) }
+    val uploadProgress by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
     var messageText by remember { mutableStateOf("") }
     var replyingTo by remember { mutableStateOf<Message?>(null) }
@@ -56,7 +63,30 @@ fun ChatScreen(
 
     var showClearDialog by remember { mutableStateOf(false) }
     var showBugDialog by remember { mutableStateOf(false) }
-    val isLoading by chatViewModel.isLoading.collectAsStateWithLifecycle()
+
+    val chatState by chatViewModel.chatState.collectAsStateWithLifecycle()
+    val isLoadingMessages = chatState.messages is UiState.Loading
+
+    // Scroll to bottom só se já estava no fundo
+    val isAtBottom by remember {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= (displayMessages.size - 2)
+        }
+    }
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty() && !showSearch && isAtBottom) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
+    }
+
+    // Scroll automático na primeira carga
+    LaunchedEffect(isLoadingMessages) {
+        if (!isLoadingMessages && messages.isNotEmpty()) {
+            listState.scrollToItem(messages.lastIndex)
+        }
+    }
 
     fun handleUpload(uri: Uri, type: String) {
         val fileName = "${System.currentTimeMillis()}_${uri.lastPathSegment ?: "file"}"
@@ -69,29 +99,21 @@ fun ChatScreen(
         MediaRepository.uploadFile(uri, path)
             .onEach { state ->
                 when (state) {
-                    is MediaRepository.UploadState.Progress -> uploadProgress = state.percent
+                    is MediaRepository.UploadState.Progress -> { /* uploadProgress = state.percent */ }
                     is MediaRepository.UploadState.Success  -> {
-                        uploadProgress = null
-                        // Envia a URL como texto, mas com messageType correto
                         chatViewModel.sendMessage(
                             roomId = roomId,
                             isPrivate = isPrivate,
                             text = state.downloadUrl,
                             senderId = currentUserId,
                             senderName = currentUserId,
-                            messageType = type   // ← "image", "video", "file"
+                            messageType = type
                         )
                     }
-                    is MediaRepository.UploadState.Error -> uploadProgress = null
+                    is MediaRepository.UploadState.Error -> {}
                 }
             }
             .launchIn(scope)
-    }
-
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && !showSearch) {
-            listState.animateScrollToItem(messages.lastIndex)
-        }
     }
 
     if (showClearDialog) {
@@ -169,16 +191,17 @@ fun ChatScreen(
                 .padding(padding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (displayMessages.isEmpty()) {
-                CapyEmptyState(
+            when {
+                // Skeleton enquanto carrega
+                isLoadingMessages -> MessageSkeletonList()
+
+                displayMessages.isEmpty() -> CapyEmptyState(
                     emoji = if (showSearch && searchQuery.isNotBlank()) "🔍" else "💬",
                     title = if (showSearch && searchQuery.isNotBlank()) "Nenhum resultado" else "Nenhuma mensagem",
                     description = if (showSearch && searchQuery.isNotBlank()) "Tente buscar por outra palavra" else "Inicie a conversa enviando um 'Olá!'"
                 )
-            } else {
-                LazyColumn(
+
+                else -> LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -188,7 +211,17 @@ fun ChatScreen(
                         displayMessages,
                         key = { index, msg -> msg.id.ifBlank { "msg_$index" } }
                     ) { index, message ->
-                        val isPreviousFromSame = index > 0 && displayMessages[index - 1].sender == message.sender
+                        // Separador de data
+                        val prevMsg = displayMessages.getOrNull(index - 1)
+                        val showDate = prevMsg == null ||
+                                message.timestamp.toDateLabel() != prevMsg.timestamp.toDateLabel()
+                        if (showDate && message.timestamp > 0L) {
+                            DateSeparator(label = message.timestamp.toDateLabel())
+                        }
+
+                        val isPreviousFromSame = index > 0 &&
+                                displayMessages[index - 1].sender == message.sender &&
+                                !showDate
                         val isHighlighted = showSearch && searchQuery.isNotBlank() &&
                                 message.text.contains(searchQuery, ignoreCase = true)
 
@@ -205,6 +238,29 @@ fun ChatScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // Botão scroll to bottom
+            AnimatedVisibility(
+                visible = !isAtBottom && displayMessages.isNotEmpty(),
+                enter = fadeIn(tween(200)) + scaleIn(tween(200)),
+                exit = fadeOut(tween(200)) + scaleOut(tween(200)),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                SmallFloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            listState.animateScrollToItem(displayMessages.lastIndex)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Ir ao final")
                 }
             }
         }
