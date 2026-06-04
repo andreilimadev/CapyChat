@@ -1,5 +1,7 @@
 package com.andreilima.capychat.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -48,32 +51,27 @@ fun ProfileScreen(
 ) {
     val haptic = LocalHapticFeedback.current
     val userProfile by chatViewModel.currentUserProfile.collectAsStateWithLifecycle()
-    val isLoading by chatViewModel.isLoading.collectAsStateWithLifecycle()
+    val isLoading by chatViewModel.isProfileSaving.collectAsStateWithLifecycle()
 
     var showEditSheet by remember { mutableStateOf(false) }
     var logoTaps by remember { mutableStateOf(0) }
 
-    // Campos do formulário de edição
     var editedName by remember(userProfile) { mutableStateOf(userProfile?.displayName ?: userName) }
-    var editedBio  by remember(userProfile) { mutableStateOf(userProfile?.bio ?: "") }
+    var editedBio by remember(userProfile) { mutableStateOf(userProfile?.bio ?: "") }
     var editedEmoji by remember(userProfile) { mutableStateOf(userProfile?.avatarEmoji ?: "🐾") }
     var showEmojiPicker by remember { mutableStateOf(false) }
-
     var saveError by remember { mutableStateOf<String?>(null) }
     var saveSuccess by remember { mutableStateOf(false) }
 
-    LaunchedEffect(logoTaps) {
-        if (logoTaps > 0) {
-            delay(2000)
-            logoTaps = 0
-        }
-    }
+    // Animação de entrada da tela
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
 
+    LaunchedEffect(logoTaps) {
+        if (logoTaps > 0) { delay(2000); logoTaps = 0 }
+    }
     LaunchedEffect(saveSuccess) {
-        if (saveSuccess) {
-            delay(2000)
-            saveSuccess = false
-        }
+        if (saveSuccess) { delay(2000); saveSuccess = false }
     }
 
     // Bottom Sheet de edição
@@ -91,14 +89,23 @@ fun ProfileScreen(
             ) {
                 Text("Editar Perfil", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
 
-                // Avatar emoji
+                // Avatar com animação de escala ao trocar
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val emojiScale by animateFloatAsState(
+                        targetValue = if (showEmojiPicker) 0.9f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "emoji_scale"
+                    )
                     Box(
                         modifier = Modifier
                             .size(64.dp)
+                            .scale(emojiScale)
                             .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { showEmojiPicker = !showEmojiPicker },
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showEmojiPicker = !showEmojiPicker
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(editedEmoji, fontSize = 32.sp)
@@ -111,8 +118,12 @@ fun ProfileScreen(
                     )
                 }
 
-                // Grid de emojis
-                if (showEmojiPicker) {
+                // Grid de emojis com AnimatedVisibility
+                AnimatedVisibility(
+                    visible = showEmojiPicker,
+                    enter = fadeIn(tween(200)) + expandVertically(tween(200)),
+                    exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
+                ) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -173,9 +184,12 @@ fun ProfileScreen(
                     supportingText = { Text("${editedBio.length}/120") }
                 )
 
-                saveError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                AnimatedVisibility(visible = saveError != null) {
+                    saveError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
+
                 Button(
                     onClick = {
                         val uid = userProfile?.uid ?: return@Button
@@ -196,165 +210,188 @@ fun ProfileScreen(
                     shape = RoundedCornerShape(16.dp),
                     enabled = editedName.isNotBlank() && !isLoading
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text("Salvar")
+                    AnimatedContent(
+                        targetState = isLoading,
+                        transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(150)) },
+                        label = "save_btn"
+                    ) { loading ->
+                        if (loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("Salvar")
+                        }
                     }
                 }
             }
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        CapyTopBar(title = "Perfil")
+    // Tela principal com animação de entrada
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(300)) + slideInVertically(
+            initialOffsetY = { it / 12 },
+            animationSpec = tween(300)
+        )
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            CapyTopBar(title = "Perfil")
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp)
-        ) {
-            // Card do avatar + nome + bio
-            item {
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(RoundedCornerShape(30.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .clickable {
-                                    logoTaps++
-                                    if (logoTaps >= 7) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onOpenCIA()
-                                        logoTaps = 0
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp)
+            ) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text(
-                                text = userProfile?.avatarEmoji ?: "🐾",
-                                fontSize = 48.sp
+                            // Avatar com animação de bounce ao atualizar
+                            val avatarScale by animateFloatAsState(
+                                targetValue = 1f,
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                label = "avatar_scale"
                             )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = userProfile?.displayName ?: userName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        )
-                        Text(
-                            text = userEmail,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        // Tag do usuário
-                        userProfile?.userTag?.let { tag ->
-                            if (tag.isNotEmpty()) {
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                ) {
-                                    Text(
-                                        text = "@$tag",
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            }
-                        }
-
-                        // Bio
-                        val bio = userProfile?.bio ?: ""
-                        if (bio.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = bio,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        // Banner de sucesso ao salvar
-                        if (saveSuccess) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer
+                            Box(
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .scale(avatarScale)
+                                    .clip(RoundedCornerShape(30.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .clickable {
+                                        logoTaps++
+                                        if (logoTaps >= 7) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onOpenCIA()
+                                            logoTaps = 0
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.CheckCircle,
-                                        null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                Text(
+                                    text = userProfile?.avatarEmoji ?: "🐾",
+                                    fontSize = 48.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = userProfile?.displayName ?: userName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp
+                            )
+                            Text(
+                                text = userEmail,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            userProfile?.userTag?.let { tag ->
+                                if (tag.isNotEmpty()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "@$tag",
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            }
+
+                            val bio = userProfile?.bio ?: ""
+                            AnimatedVisibility(visible = bio.isNotEmpty()) {
+                                Column {
+                                    Spacer(modifier = Modifier.height(12.dp))
                                     Text(
-                                        "Perfil atualizado!",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary
+                                        text = bio,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(20.dp))
-                        OutlinedButton(
-                            onClick = { showEditSheet = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Icon(Icons.Outlined.Edit, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Editar perfil")
+                            // Banner de sucesso
+                            AnimatedVisibility(
+                                visible = saveSuccess,
+                                enter = fadeIn(tween(200)) + expandVertically(tween(200)),
+                                exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.CheckCircle, null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "Perfil atualizado!",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                            OutlinedButton(
+                                onClick = { showEditSheet = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp)
+                            ) {
+                                Icon(Icons.Outlined.Edit, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Editar perfil")
+                            }
                         }
                     }
                 }
-            }
 
-            // Opções de navegação
-            item {
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        ProfileOptionRow(icon = Icons.Outlined.Lock, label = "Privacidade", onClick = onOpenPrivacy)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                        ProfileOptionRow(icon = Icons.Outlined.Settings, label = "Configurações", onClick = onOpenSettings)
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                        ProfileOptionRow(icon = Icons.Outlined.HelpOutline, label = "Ajuda", onClick = onOpenHelp)
+                item {
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            ProfileOptionRow(icon = Icons.Outlined.Lock, label = "Privacidade", onClick = onOpenPrivacy)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            ProfileOptionRow(icon = Icons.Outlined.Settings, label = "Configurações", onClick = onOpenSettings)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            ProfileOptionRow(icon = Icons.Outlined.HelpOutline, label = "Ajuda", onClick = onOpenHelp)
+                        }
                     }
                 }
-            }
 
-            item {
-                Button(
-                    onClick = onLogout,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                ) {
-                    Text("Sair da conta")
+                item {
+                    Button(
+                        onClick = onLogout,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Sair da conta")
+                    }
                 }
             }
         }

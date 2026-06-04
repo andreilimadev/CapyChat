@@ -52,6 +52,10 @@ class ChatViewModel : ViewModel() {
         .map { it.isSending || it.messages is UiState.Loading }
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
+    val isProfileSaving: StateFlow<Boolean> = _profileState
+        .map { it.isSaving }
+        .stateIn(viewModelScope, SharingStarted.Lazily, false)
+
     val typingUsers: StateFlow<List<String>> = chatState
         .map { it.typingUsers }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
