@@ -2,12 +2,15 @@ package com.andreilima.capychat.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
@@ -31,7 +34,7 @@ import com.andreilima.capychat.data.model.MessageStatus
 import com.andreilima.capychat.ui.components.CapyEmptyState
 import com.andreilima.capychat.ui.viewmodel.ChatViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     contactName: String,
@@ -43,13 +46,15 @@ fun ChatScreen(
     isPrivate: Boolean = false,
     currentUserId: String = "",
     onBackClick: () -> Unit,
-    onSendMessage: (String) -> Unit,
+    onSendMessage: (String, Message?) -> Unit,
+    onReactToMessage: (String, String) -> Unit = { _, _ -> },
     onUserTyping: ((String, Boolean, String) -> Unit)? = null,
     chatViewModel: ChatViewModel = viewModel()
 ) {
     val haptic = LocalHapticFeedback.current
     var messageText by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
+    var replyingTo by remember { mutableStateOf<Message?>(null) }
     val listState = rememberLazyListState()
 
     // Busca dentro da conversa
@@ -295,71 +300,123 @@ fun ChatScreen(
                 shadowElevation = 12.dp,
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .navigationBarsPadding()
-                        .imePadding()
-                ) {
-                    IconButton(onClick = { /* Bloco 4 — anexos */ }) {
-                        Icon(Icons.Outlined.AddCircleOutline, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-
-                    OutlinedTextField(
-                        value = messageText,
-                        onValueChange = { newValue ->
-                            messageText = newValue
-                            if (newValue.isNotBlank() && roomId.isNotEmpty() && currentUserId.isNotEmpty()) {
-                                onUserTyping?.invoke(roomId, isPrivate, currentUserId)
-                            }
-                        },
-                        placeholder = { Text("Mensagem") },
-                        modifier = Modifier
-                            .weight(1f)
-                            .animateContentSize(),
-                        shape = RoundedCornerShape(28.dp),
-                        maxLines = 5,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                        )
-                    )
-
-                    Spacer(Modifier.width(8.dp))
-
-                    val hasText = messageText.isNotBlank()
-
-                    FloatingActionButton(
-                        onClick = {
-                            if (hasText) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSendMessage(messageText.trim())
-                                messageText = ""
-                            }
-                        },
-                        modifier = Modifier.size(52.dp),
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp),
-                        shape = CircleShape
+                Column {
+                    AnimatedVisibility(
+                        visible = replyingTo != null,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
                     ) {
-                        AnimatedContent(
-                            targetState = hasText,
-                            transitionSpec = { (scaleIn() + fadeIn()).togetherWith(scaleOut() + fadeOut()) },
-                            label = "send_icon"
-                        ) { isSending ->
-                            Icon(
-                                imageVector = if (isSending) Icons.AutoMirrored.Outlined.Send else Icons.Outlined.Mic,
-                                contentDescription = if (isSending) "Enviar" else "Gravar"
+                        replyingTo?.let { reply ->
+                            Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(3.dp)
+                                            .height(36.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.primary,
+                                                RoundedCornerShape(2.dp)
+                                            )
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            reply.sender,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            reply.text,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { replyingTo = null },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Close,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .navigationBarsPadding()
+                            .imePadding()
+                    ) {
+                        IconButton(onClick = { /* Bloco 4 — anexos */ }) {
+                            Icon(Icons.Outlined.AddCircleOutline, null, tint = MaterialTheme.colorScheme.primary)
+                        }
+                        OutlinedTextField(
+                            value = messageText,
+                            onValueChange = { newValue ->
+                                messageText = newValue
+                                if (newValue.isNotBlank() && roomId.isNotEmpty() && currentUserId.isNotEmpty()) {
+                                    onUserTyping?.invoke(roomId, isPrivate, currentUserId)
+                                }
+                            },
+                            placeholder = { Text("Mensagem") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .animateContentSize(),
+                            shape = RoundedCornerShape(28.dp),
+                            maxLines = 5,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                             )
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        val hasText = messageText.isNotBlank()
+                        FloatingActionButton(
+                            onClick = {
+                                if (hasText) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSendMessage(messageText.trim(), replyingTo)
+                                    messageText = ""
+                                    replyingTo = null
+                                }
+                            },
+                            modifier = Modifier.size(52.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp),
+                            shape = CircleShape
+                        ) {
+                            AnimatedContent(
+                                targetState = hasText,
+                                transitionSpec = { (scaleIn() + fadeIn()).togetherWith(scaleOut() + fadeOut()) },
+                                label = "send_icon"
+                            ) { isSending ->
+                                Icon(
+                                    imageVector = if (isSending) Icons.AutoMirrored.Outlined.Send else Icons.Outlined.Mic,
+                                    contentDescription = if (isSending) "Enviar" else "Gravar"
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
+        },
     ) { padding ->
         Box(
             modifier = Modifier
@@ -391,7 +448,9 @@ fun ChatScreen(
                             message = message,
                             showName = !message.isMine && !isPreviousFromSame,
                             isGrouped = isPreviousFromSame,
-                            isHighlighted = isHighlighted
+                            isHighlighted = isHighlighted,
+                            onReply = { replyingTo = it },
+                            onReact = { msg, emoji -> onReactToMessage(msg.id, emoji) }
                         )
                     }
                 }
@@ -400,18 +459,24 @@ fun ChatScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
     showName: Boolean,
     isGrouped: Boolean,
-    isHighlighted: Boolean = false
+    isHighlighted: Boolean = false,
+    onReply: (Message) -> Unit = {},
+    onReact: (Message, String) -> Unit = { _, _ -> }
 ) {
     val bubbleShape = if (message.isMine) {
         RoundedCornerShape(topStart = 20.dp, topEnd = if (isGrouped) 4.dp else 20.dp, bottomEnd = 4.dp, bottomStart = 20.dp)
     } else {
         RoundedCornerShape(topStart = if (isGrouped) 4.dp else 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp)
     }
+
+    val reactionEmojis = listOf("❤️", "😂", "👍", "😮", "😢", "🔥")
+    var showActionMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -434,47 +499,167 @@ fun MessageBubble(
                 )
             }
 
-            Surface(
-                color = when {
-                    isHighlighted -> MaterialTheme.colorScheme.tertiaryContainer
-                    message.isMine -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.surfaceVariant
-                },
-                contentColor = when {
-                    isHighlighted -> MaterialTheme.colorScheme.onTertiaryContainer
-                    message.isMine -> MaterialTheme.colorScheme.onPrimary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                shape = bubbleShape,
-                tonalElevation = if (message.isMine) 2.dp else 0.dp
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                    Text(text = message.text, fontSize = 15.sp, lineHeight = 20.sp)
-                    Row(
-                        modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Text(
-                            text = message.time,
-                            fontSize = 10.sp,
-                            color = (if (message.isMine) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.6f)
-                        )
-                        if (message.isMine) {
-                            val tickColor = when (message.status) {
-                                MessageStatus.READ -> Color(0xFF4FC3F7)
-                                MessageStatus.DELIVERED -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                                MessageStatus.SENT -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+            Box {
+                Surface(
+                    color = when {
+                        isHighlighted -> MaterialTheme.colorScheme.tertiaryContainer
+                        message.isMine -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = when {
+                        isHighlighted -> MaterialTheme.colorScheme.onTertiaryContainer
+                        message.isMine -> MaterialTheme.colorScheme.onPrimary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    shape = bubbleShape,
+                    tonalElevation = if (message.isMine) 2.dp else 0.dp,
+                    modifier = Modifier.combinedClickable(
+                        onClick = {},
+                        onLongClick = { showActionMenu = true }
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+
+                        // Citação de reply
+                        if (message.replyToText.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = (if (message.isMine)
+                                    MaterialTheme.colorScheme.onPrimary
+                                else
+                                    MaterialTheme.colorScheme.primary).copy(alpha = 0.12f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 6.dp)
+                            ) {
+                                Row(modifier = Modifier.padding(6.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(3.dp)
+                                            .height(32.dp)
+                                            .background(
+                                                if (message.isMine)
+                                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                                else
+                                                    MaterialTheme.colorScheme.primary,
+                                                RoundedCornerShape(2.dp)
+                                            )
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Column {
+                                        Text(
+                                            message.replyToSender,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (message.isMine)
+                                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                            else
+                                                MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            message.replyToText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = if (message.isMine)
+                                                MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                            else
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
+                        }
+
+                        Text(text = message.text, fontSize = 15.sp, lineHeight = 20.sp)
+
+                        Row(
+                            modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
                             Text(
-                                text = when (message.status) {
-                                    MessageStatus.SENT -> "✓"
-                                    else -> "✓✓"
-                                },
+                                text = message.time,
                                 fontSize = 10.sp,
-                                color = tickColor,
-                                fontWeight = FontWeight.Bold
+                                color = (if (message.isMine) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.6f)
+                            )
+                            if (message.isMine) {
+                                val tickColor = when (message.status) {
+                                    MessageStatus.READ -> Color(0xFF4FC3F7)
+                                    MessageStatus.DELIVERED -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                    MessageStatus.SENT -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
+                                }
+                                Text(
+                                    text = when (message.status) {
+                                        MessageStatus.SENT -> "✓"
+                                        else -> "✓✓"
+                                    },
+                                    fontSize = 10.sp,
+                                    color = tickColor,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Menu flutuante de ações
+                DropdownMenu(
+                    expanded = showActionMenu,
+                    onDismissRequest = { showActionMenu = false }
+                ) {
+                    // Linha de emojis
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        reactionEmojis.forEach { emoji ->
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        onReact(message, emoji)
+                                        showActionMenu = false
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(emoji, fontSize = 22.sp)
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Responder") },
+                        leadingIcon = { Icon(Icons.Outlined.Reply, null) },
+                        onClick = {
+                            onReply(message)
+                            showActionMenu = false
+                        }
+                    )
+                }
+            }
+
+            // Pills de reações existentes
+            if (message.reactions.isNotEmpty()) {
+                val grouped = message.reactions.values
+                    .groupBy { it }
+                    .mapValues { it.value.size }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
+                ) {
+                    grouped.forEach { (emoji, count) ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            tonalElevation = 2.dp
+                        ) {
+                            Text(
+                                text = if (count > 1) "$emoji $count" else emoji,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                fontSize = 12.sp
                             )
                         }
                     }

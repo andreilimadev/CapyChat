@@ -48,6 +48,8 @@ class ChatViewModel : ViewModel() {
 
     // Notificações não lidas
     private val _unreadNotificationsCount = MutableStateFlow(0)
+    private val _notifications = MutableStateFlow<List<FirestoreNotification>>(emptyList())
+    val notifications: StateFlow<List<FirestoreNotification>> = _notifications.asStateFlow()
     val unreadNotificationsCount: StateFlow<Int> = _unreadNotificationsCount.asStateFlow()
 
     // Estado atual do chat aberto
@@ -114,13 +116,14 @@ class ChatViewModel : ViewModel() {
         uid: String,
         displayName: String,
         bio: String,
+        avatarEmoji: String = "🐾",
         photoUrl: String? = null,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = FirebaseService.updateUserProfile(uid, displayName, bio, photoUrl)
+            val result = FirebaseService.updateUserProfile(uid, displayName, bio, avatarEmoji, photoUrl)
             _isLoading.value = false
             result.onSuccess { onSuccess() }
             result.onFailure { onError(it.message ?: "Erro ao atualizar perfil") }
@@ -237,20 +240,22 @@ class ChatViewModel : ViewModel() {
         isPrivate: Boolean,
         text: String,
         senderId: String,
-        senderName: String
+        senderName: String,
+        replyToText: String = "",
+        replyToSender: String = ""
     ) {
         if (text.isBlank()) return
         viewModelScope.launch {
-            // Parar indicador de digitando ao enviar
             FirebaseService.setTyping(roomId, isPrivate, senderId, false)
             typingResetJob?.cancel()
-
             FirebaseService.sendMessage(
                 roomId = roomId,
                 isPrivate = isPrivate,
                 text = text.trim(),
                 senderId = senderId,
-                senderName = senderName
+                senderName = senderName,
+                replyToText = replyToText,
+                replyToSender = replyToSender
             )
         }
     }
@@ -400,8 +405,9 @@ class ChatViewModel : ViewModel() {
 
     fun startObservingNotifications(userId: String) {
         viewModelScope.launch {
-            FirebaseService.observeNotifications(userId).collect { list ->
-                _unreadNotificationsCount.value = list.size
+            FirebaseService.observeAllNotifications(userId).collect { list ->
+                _notifications.value = list
+                _unreadNotificationsCount.value = list.count { !it.isRead }
             }
         }
     }
@@ -422,5 +428,23 @@ class ChatViewModel : ViewModel() {
         typingJob?.cancel()
         typingResetJob?.cancel()
         searchJob?.cancel()
+    }
+    fun markAllNotificationsRead() {
+        viewModelScope.launch {
+            _notifications.value
+                .filter { !it.isRead }
+                .forEach { FirebaseService.markNotificationAsRead(it.id) }
+        }
+    }
+    fun reactToMessage(
+        roomId: String,
+        isPrivate: Boolean,
+        messageId: String,
+        userId: String,
+        emoji: String
+    ) {
+        viewModelScope.launch {
+            FirebaseService.reactToMessage(roomId, isPrivate, messageId, userId, emoji)
+        }
     }
 }

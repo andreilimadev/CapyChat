@@ -27,7 +27,8 @@ import com.andreilima.capychat.ui.viewmodel.PreferencesViewModel
 import kotlinx.coroutines.launch
 
 enum class Screen {
-    LOGIN, REGISTER, CONVERSATIONS, CHAT, STATUS, STATUS_VIEW, PROFILE, PRIVACY, SETTINGS, HELP, CIA
+    LOGIN, REGISTER, CONVERSATIONS, CHAT, STATUS, STATUS_VIEW,
+    PROFILE, PRIVACY, SETTINGS, HELP, CIA, NOTIFICATIONS   // ← NOVO
 }
 
 @Composable
@@ -98,7 +99,9 @@ fun CapyChatApp(
             }
         }
 
-        val isMainScreen = currentScreen in listOf(Screen.CONVERSATIONS, Screen.STATUS, Screen.PROFILE)
+        val isMainScreen = currentScreen in listOf(
+            Screen.CONVERSATIONS, Screen.STATUS, Screen.PROFILE, Screen.NOTIFICATIONS
+        )
 
         if (authState is AuthState.Loading) {
             CapyLoadingState(message = "Autenticando...")
@@ -171,6 +174,14 @@ fun CapyChatApp(
                                         }
                                     }
                                 )
+                                Screen.NOTIFICATIONS -> NotificationsScreen(
+                                    onNotificationClick = { notif ->
+                                        // Navega para o chat se for mensagem
+                                        if (notif.type == "message" && notif.payload.isNotEmpty()) {
+                                            navigate(Screen.CONVERSATIONS)
+                                        }
+                                    }
+                                )
                                 Screen.PROFILE -> ProfileScreen(
                                     userName = loggedInState?.username ?: "Usuário",
                                     userEmail = FirebaseService.auth.currentUser?.email ?: "",
@@ -220,21 +231,58 @@ fun CapyChatApp(
                                             chatViewModel.stopObservingMessages()
                                             navigate(Screen.CONVERSATIONS)
                                         },
-                                        onSendMessage = { text ->
+                                        onSendMessage = { text, replyTo ->
                                             loggedInState?.let { state ->
-                                                chatViewModel.sendMessage(chatId, selectedChatIsPrivate, text, state.uid, state.username)
+                                                chatViewModel.sendMessage(
+                                                    roomId = chatId,
+                                                    isPrivate = selectedChatIsPrivate,
+                                                    text = text,
+                                                    senderId = state.uid,
+                                                    senderName = state.username,
+                                                    replyToText = replyTo?.text ?: "",
+                                                    replyToSender = replyTo?.sender ?: ""
+                                                )
+                                            }
+                                        },
+                                        onReactToMessage = { messageId, emoji ->
+                                            loggedInState?.let { state ->
+                                                chatViewModel.reactToMessage(
+                                                    roomId = chatId,
+                                                    isPrivate = selectedChatIsPrivate,
+                                                    messageId = messageId,
+                                                    userId = state.uid,
+                                                    emoji = emoji
+                                                )
                                             }
                                         },
                                         onUserTyping = { roomId, isPrivate, userId ->
                                             chatViewModel.onUserTyping(roomId, isPrivate, userId)
                                         }
+
                                     )
                                 } ?: navigate(Screen.CONVERSATIONS)
                             }
                             Screen.STATUS_VIEW -> {
-                                statuses.find { it.id == selectedStatusId }?.let { status ->
-                                    StatusViewerScreen(status = status, onBackClick = { navigate(Screen.STATUS) })
-                                    chatViewModel.markStatusAsViewed(status.id, loggedInState?.uid ?: "")
+                                val statusIndex = statuses.indexOfFirst { it.id == selectedStatusId }
+                                val currentStatus = if (statusIndex >= 0) statuses[statusIndex] else null
+                                currentStatus?.let { status ->
+                                    LaunchedEffect(status.id) {
+                                        chatViewModel.markStatusAsViewed(status.id, loggedInState?.uid ?: "")
+                                    }
+                                    StatusViewerScreen(
+                                        status = status,
+                                        allStatuses = statuses,
+                                        currentIndex = statusIndex,
+                                        onBackClick = { navigate(Screen.STATUS) },
+                                        onNextClick = {
+                                            val next = statuses.getOrNull(statusIndex + 1)
+                                            if (next != null) {
+                                                selectedStatusId = next.id
+                                            } else {
+                                                navigate(Screen.STATUS)
+                                            }
+                                        }
+                                    )
                                 } ?: navigate(Screen.STATUS)
                             }
                             Screen.PRIVACY -> PrivacyScreen(onBackClick = { navigate(Screen.PROFILE) })

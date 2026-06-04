@@ -87,7 +87,7 @@ fun HelpScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Feito com ❤️ por Andrei Lima",
+                    "Feito com ❤️ pela Equipe Capy",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )

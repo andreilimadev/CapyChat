@@ -45,6 +45,7 @@ fun ConversationsScreen(
     onCreateRoom: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
+    // searchText = busca local de salas (filtro no cliente)
     var searchText by remember { mutableStateOf("") }
     var isFabExpanded by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
@@ -163,6 +164,7 @@ fun ConversationsScreen(
 
     if (showSearchDialog) {
         UserSearchDialog(
+            // searchQuery = busca de usuários (debounce no Firestore)
             query = searchQuery,
             results = searchResults,
             isSearching = isSearching,

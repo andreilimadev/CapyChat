@@ -1,40 +1,18 @@
 package com.andreilima.capychat.ui.screens
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.NavigateNext
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -47,33 +25,61 @@ import com.andreilima.capychat.ui.theme.CapyPrimary
 @Composable
 fun StatusViewerScreen(
     status: StatusItem,
+    allStatuses: List<StatusItem> = emptyList(),
+    currentIndex: Int = 0,
     onBackClick: () -> Unit,
     onNextClick: () -> Unit = {}
 ) {
+    // Barra de progresso animada — avança em 5 segundos e chama onNextClick
+    var progressTarget by remember(status.id) { mutableFloatStateOf(0f) }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = progressTarget,
+        animationSpec = tween(durationMillis = 5000, easing = LinearEasing),
+        label = "status_progress",
+        finishedListener = { onNextClick() }
+    )
+
+    LaunchedEffect(status.id) {
+        progressTarget = 1f
+    }
+
+    val totalCount = allStatuses.size.coerceAtLeast(1)
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = status.name,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = status.time,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(status.emoji, fontSize = 18.sp)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = status.name,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                text = status.time,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Voltar"
-                        )
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -94,14 +100,10 @@ fun StatusViewerScreen(
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Button(
+                    OutlinedButton(
                         onClick = onBackClick,
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        shape = RoundedCornerShape(18.dp)
                     ) {
                         Text("Voltar")
                     }
@@ -110,17 +112,16 @@ fun StatusViewerScreen(
                         onClick = onNextClick,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(18.dp),
+                        enabled = currentIndex < totalCount - 1,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CapyPrimary,
-                            contentColor = Color.White
+                            contentColor = Color.White,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.NavigateNext,
-                            contentDescription = null
+                        Text(
+                            if (currentIndex < totalCount - 1) "Próximo" else "Fim"
                         )
-                        Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                        Text("Próximo")
                     }
                 }
             }
@@ -138,25 +139,37 @@ fun StatusViewerScreen(
                     )
                 )
                 .padding(innerPadding)
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                LinearProgressIndicator(
-                    progress = { 0.65f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp),
-                    color = CapyPrimary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                // Barras de progresso por status (estilo Instagram)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    repeat(totalCount) { i ->
+                        val segmentProgress = when {
+                            i < currentIndex -> 1f
+                            i == currentIndex -> animatedProgress
+                            else -> 0f
+                        }
+                        LinearProgressIndicator(
+                            progress = { segmentProgress },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(3.dp)
+                                .clip(CircleShape),
+                            color = CapyPrimary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(22.dp))
-
+                // Card do status
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(30.dp),
@@ -168,66 +181,60 @@ fun StatusViewerScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(90.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(28.dp)
-                                ),
+                                .size(100.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = status.emoji,
-                                fontSize = 40.sp
-                            )
+                            Text(status.emoji, fontSize = 52.sp)
                         }
-
-                        Spacer(modifier = Modifier.height(18.dp))
 
                         Text(
                             text = status.name,
-                            fontSize = 22.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Atualização recente",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-
-                        Spacer(modifier = Modifier.height(22.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                         Text(
                             text = status.text,
                             fontSize = 18.sp,
                             lineHeight = 28.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
                         )
 
-                        Spacer(modifier = Modifier.height(26.dp))
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Rodapé com views
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Visibility,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = status.time,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Visibility,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = status.time,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
                         }
                     }
                 }

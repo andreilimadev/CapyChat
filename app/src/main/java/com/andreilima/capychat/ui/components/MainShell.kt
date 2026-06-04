@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,10 +33,21 @@ fun MainShell(
                 NavigationBarItem(
                     selected = currentScreen == Screen.CONVERSATIONS,
                     onClick = { if (currentScreen != Screen.CONVERSATIONS) onNavigate(Screen.CONVERSATIONS) },
+                    icon = { Icon(Icons.Outlined.ChatBubbleOutline, null) },
+                    label = { Text("Conversas") }
+                )
+                NavigationBarItem(
+                    selected = currentScreen == Screen.STATUS,
+                    onClick = { if (currentScreen != Screen.STATUS) onNavigate(Screen.STATUS) },
+                    icon = { Icon(Icons.Outlined.AutoStories, null) },
+                    label = { Text("Status") }
+                )
+                NavigationBarItem(
+                    selected = currentScreen == Screen.NOTIFICATIONS,
+                    onClick = { if (currentScreen != Screen.NOTIFICATIONS) onNavigate(Screen.NOTIFICATIONS) },
                     icon = {
                         Box {
-                            Icon(Icons.Outlined.ChatBubbleOutline, null)
-                            // Badge de notificações não lidas
+                            Icon(Icons.Outlined.Notifications, null)
                             if (unreadNotificationsCount > 0) {
                                 Badge(
                                     modifier = Modifier.align(Alignment.TopEnd),
@@ -49,13 +61,7 @@ fun MainShell(
                             }
                         }
                     },
-                    label = { Text("Conversas") }
-                )
-                NavigationBarItem(
-                    selected = currentScreen == Screen.STATUS,
-                    onClick = { if (currentScreen != Screen.STATUS) onNavigate(Screen.STATUS) },
-                    icon = { Icon(Icons.Outlined.AutoStories, null) },
-                    label = { Text("Status") }
+                    label = { Text("Avisos") }
                 )
                 NavigationBarItem(
                     selected = currentScreen == Screen.PROFILE,

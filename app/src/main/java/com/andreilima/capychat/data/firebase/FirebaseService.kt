@@ -8,7 +8,6 @@ import com.andreilima.capychat.data.model.FirestoreUser
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
-import com.google.firebase.firestore.MemoryCacheSettings
 import com.google.firebase.firestore.PersistentCacheSettings
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -97,12 +96,14 @@ object FirebaseService {
         uid: String,
         displayName: String,
         bio: String,
+        avatarEmoji: String = "🐾",
         photoUrl: String? = null
     ): Result<Unit> {
         return try {
             val updates = mutableMapOf<String, Any>(
                 "displayName" to displayName,
-                "bio" to bio
+                "bio" to bio,
+                "avatarEmoji" to avatarEmoji
             )
             if (photoUrl != null) updates["photoUrl"] = photoUrl
             db.collection("users").document(uid).update(updates).await()
@@ -380,7 +381,9 @@ object FirebaseService {
         text: String,
         senderId: String,
         senderName: String,
-        messageType: String = "text"
+        messageType: String = "text",
+        replyToText: String = "",
+        replyToSender: String = ""
     ): Result<Unit> {
         return try {
             val collection = if (isPrivate) "private_rooms" else "public_rooms"
@@ -390,7 +393,9 @@ object FirebaseService {
                 senderName = senderName,
                 timestamp = System.currentTimeMillis(),
                 messageType = messageType,
-                deliveredTo = mapOf(senderId to true)
+                deliveredTo = mapOf(senderId to true),
+                replyToText = replyToText,
+                replyToSender = replyToSender
             )
             val roomRef = db.collection(collection).document(roomId)
             roomRef.collection("messages").add(message).await()
@@ -491,11 +496,11 @@ object FirebaseService {
         }
     }
 
-    fun observeNotifications(userId: String): Flow<List<FirestoreNotification>> = callbackFlow {
+    fun observeAllNotifications(userId: String): Flow<List<FirestoreNotification>> = callbackFlow {
         val listener = db.collection("notifications")
             .whereEqualTo("toUserId", userId)
-            .whereEqualTo("isRead", false)
             .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(50)
             .addSnapshotListener { snapshot, _ ->
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(FirestoreNotification::class.java)?.copy(id = doc.id)
@@ -509,6 +514,23 @@ object FirebaseService {
         try {
             db.collection("notifications").document(notificationId)
                 .update("isRead", true)
+                .await()
+        } catch (e: Exception) {
+            // Silencioso
+        }
+    }
+    suspend fun reactToMessage(
+        roomId: String,
+        isPrivate: Boolean,
+        messageId: String,
+        userId: String,
+        emoji: String
+    ) {
+        try {
+            val collection = if (isPrivate) "private_rooms" else "public_rooms"
+            db.collection(collection).document(roomId)
+                .collection("messages").document(messageId)
+                .update("reactions.$userId", emoji)
                 .await()
         } catch (e: Exception) {
             // Silencioso

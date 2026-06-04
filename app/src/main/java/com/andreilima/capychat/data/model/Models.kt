@@ -27,9 +27,13 @@ data class Message(
     val text: String = "",
     val isMine: Boolean = false,
     val time: String = "",
-    val messageType: String = "text",   // text | image | emoji
-    val status: MessageStatus = MessageStatus.SENT
+    val messageType: String = "text",
+    val status: MessageStatus = MessageStatus.SENT,
+    val reactions: Map<String, String> = emptyMap(), // ← NOVO: userId -> emoji
+    val replyToText: String = "",                    // ← NOVO: texto da msg original
+    val replyToSender: String = ""                   // ← NOVO: nome do remetente original
 )
+
 
 enum class MessageStatus {
     SENT,       // ✓
@@ -68,9 +72,10 @@ data class FirestoreUser(
     val userTag: String = "",
     val email: String = "",
     val photoUrl: String? = null,
-    val bio: String = "",               // NOVO
-    val isOnline: Boolean = false,      // NOVO
-    val lastSeen: Long = 0L,            // NOVO
+    val avatarEmoji: String = "🐾",   // ← NOVO
+    val bio: String = "",
+    val isOnline: Boolean = false,
+    val lastSeen: Long = 0L,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -83,7 +88,10 @@ data class FirestoreRoom(
     val isPrivate: Boolean = false,
     val participants: Map<String, Boolean> = emptyMap(),
     val participantNames: Map<String, String> = emptyMap(),
-    val typingUsers: Map<String, Boolean> = emptyMap()  // NOVO — "digitando..."
+    val participantEmojis: Map<String, String> = emptyMap(), // ← NOVO
+    val typingUsers: Map<String, Boolean> = emptyMap(),
+    val pinnedBy: Map<String, Boolean> = emptyMap(),         // ← NOVO
+    val mutedBy: Map<String, Boolean> = emptyMap()           // ← NOVO
 )
 
 data class FirestoreMessage(
@@ -91,11 +99,13 @@ data class FirestoreMessage(
     val senderId: String = "",
     val senderName: String = "",
     val timestamp: Long = 0L,
-    val messageType: String = "text",                       // NOVO
-    val readBy: Map<String, Boolean> = emptyMap(),          // NOVO
-    val deliveredTo: Map<String, Boolean> = emptyMap()      // NOVO
+    val messageType: String = "text",
+    val readBy: Map<String, Boolean> = emptyMap(),
+    val deliveredTo: Map<String, Boolean> = emptyMap(),
+    val reactions: Map<String, String> = emptyMap(), // ← NOVO
+    val replyToText: String = "",                    // ← NOVO
+    val replyToSender: String = ""                   // ← NOVO
 )
-
 data class FirestoreStatus(
     val id: String = "",
     val userId: String = "",
@@ -169,7 +179,10 @@ fun FirestoreMessage.toMessage(id: String, currentUserId: String): Message {
         isMine = senderId == currentUserId,
         time = timeStr,
         messageType = messageType,
-        status = status
+        status = status,
+        reactions = reactions,       // ← NOVO
+        replyToText = replyToText,   // ← NOVO
+        replyToSender = replyToSender // ← NOVO
     )
 }
 
