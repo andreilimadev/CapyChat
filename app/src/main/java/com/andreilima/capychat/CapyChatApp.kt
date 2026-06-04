@@ -244,14 +244,15 @@ fun CapyChatApp(
                                                 )
                                             }
                                         },
-                                        onReactToMessage = { messageId, emoji ->
+                                        onReactToMessage = { messageId, emoji, currentEmoji ->
                                             loggedInState?.let { state ->
                                                 chatViewModel.reactToMessage(
                                                     roomId = chatId,
                                                     isPrivate = selectedChatIsPrivate,
                                                     messageId = messageId,
                                                     userId = state.uid,
-                                                    emoji = emoji
+                                                    emoji = emoji,
+                                                    currentEmoji = currentEmoji
                                                 )
                                             }
                                         },

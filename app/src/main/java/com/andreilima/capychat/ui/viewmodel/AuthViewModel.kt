@@ -92,8 +92,10 @@ class AuthViewModel : ViewModel() {
     }
 
     fun logout() {
-        FirebaseService.logout()
-        _state.value = AuthState.LoggedOut
+        viewModelScope.launch {
+            FirebaseService.logout()
+            _state.value = AuthState.LoggedOut
+        }
     }
 
     fun clearError() {
