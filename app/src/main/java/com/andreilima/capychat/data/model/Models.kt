@@ -76,7 +76,8 @@ data class FirestoreUser(
     val bio: String = "",
     val isOnline: Boolean = false,
     val lastSeen: Long = 0L,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val fcmToken: String = ""
 )
 
 data class FirestoreRoom(
@@ -104,7 +105,9 @@ data class FirestoreMessage(
     val deliveredTo: Map<String, Boolean> = emptyMap(),
     val reactions: Map<String, String> = emptyMap(), // ← NOVO
     val replyToText: String = "",                    // ← NOVO
-    val replyToSender: String = ""                   // ← NOVO
+    val replyToSender: String = "",                  // ← NOVO
+    val selfDestructAt: Long = 0L,
+    val isGhost: Boolean = false
 )
 data class FirestoreStatus(
     val id: String = "",
@@ -160,6 +163,7 @@ fun FirestoreRoom.toChatItem(id: String, currentUserId: String): ChatItem {
 }
 
 fun FirestoreMessage.toMessage(id: String, currentUserId: String): Message {
+
     val timeStr = if (timestamp > 0) {
         val cal = Calendar.getInstance()
         cal.timeInMillis = timestamp
@@ -180,9 +184,10 @@ fun FirestoreMessage.toMessage(id: String, currentUserId: String): Message {
         time = timeStr,
         messageType = messageType,
         status = status,
-        reactions = reactions,       // ← NOVO
-        replyToText = replyToText,   // ← NOVO
-        replyToSender = replyToSender // ← NOVO
+        reactions = reactions,
+        replyToText = replyToText,
+        replyToSender = replyToSender,
+        selfDestructAt = selfDestructAt  // ← FASE 5
     )
 }
 
@@ -211,5 +216,6 @@ fun FirestoreUser.toSearchItem(): UserSearchItem = UserSearchItem(
     username = username,
     userTag = userTag,
     photoUrl = photoUrl,
-    isOnline = isOnline
+    isOnline = isOnline,
+
 )
