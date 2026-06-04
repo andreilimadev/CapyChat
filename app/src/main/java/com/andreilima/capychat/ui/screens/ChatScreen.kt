@@ -145,6 +145,9 @@ fun ChatScreen(
                 onBackClick = onBackClick,
                 onToggleSearch = { showSearch = !showSearch; if (!showSearch) searchQuery = "" },
                 onSearchQueryChange = { searchQuery = it },
+                onViewMedia = {
+                    // futuro: navController.navigate("media/$roomId")
+                },
                 onMute = { chatViewModel.muteRoom(roomId, isPrivate, currentUserId, true) {} },
                 onPin = { chatViewModel.pinRoom(roomId, isPrivate, currentUserId, true) {} },
                 onClearConversation = { showClearDialog = true },

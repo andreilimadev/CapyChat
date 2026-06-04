@@ -28,6 +28,7 @@ fun ChatTopBar(
     onBackClick: () -> Unit,
     onToggleSearch: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
+    onViewMedia: () -> Unit = {},
     onMute: () -> Unit,
     onPin: () -> Unit,
     onClearConversation: () -> Unit,
@@ -92,7 +93,7 @@ fun ChatTopBar(
                         DropdownMenuItem(
                             text = { Text("Ver mídia") },
                             leadingIcon = { Icon(Icons.Outlined.PermMedia, null) },
-                            onClick = { showMenu = false }
+                            onClick = { showMenu = false; onViewMedia() }
                         )
                         DropdownMenuItem(
                             text = { Text("Silenciar") },
