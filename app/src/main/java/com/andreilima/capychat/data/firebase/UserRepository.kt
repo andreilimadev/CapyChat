@@ -1,6 +1,7 @@
 package com.andreilima.capychat.data.firebase
 
 import com.andreilima.capychat.data.model.FirestoreUser
+import com.andreilima.capychat.data.model.UserSearchItem
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +43,15 @@ object UserRepository {
         } catch (e: Exception) { }
     }
 
+    suspend fun setGhostMode(uid: String, enabled: Boolean): Result<Unit> {
+        return try {
+            db.collection("users").document(uid).update(
+                mapOf("isGhostMode" to enabled, "isOnline" to !enabled)
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     fun observeUser(uid: String): Flow<FirestoreUser?> = callbackFlow {
         val listener = db.collection("users").document(uid)
             .addSnapshotListener { snapshot, _ ->
@@ -52,23 +62,13 @@ object UserRepository {
 
     suspend fun searchUsers(query: String): List<FirestoreUser> {
         if (query.isBlank()) return emptyList()
-        val normalized = query.lowercase().trim()
+        val q = query.lowercase().trim()
         return try {
             db.collection("users")
                 .orderBy("searchableUsername")
-                .startAt(normalized)
-                .endAt(normalized + "\uf8ff")
-                .limit(20)
-                .get().await()
+                .startAt(q).endAt(q + "\uf8ff")
+                .limit(20).get().await()
                 .toObjects(FirestoreUser::class.java)
         } catch (e: Exception) { emptyList() }
-    }
-    suspend fun setGhostMode(uid: String, enabled: Boolean): Result<Unit> {
-        return try {
-            db.collection("users").document(uid).update(
-                mapOf("isGhostMode" to enabled, "isOnline" to !enabled)
-            ).await()
-            Result.success(Unit)
-        } catch (e: Exception) { Result.failure(e) }
     }
 }

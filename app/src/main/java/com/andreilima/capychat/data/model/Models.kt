@@ -29,9 +29,10 @@ data class Message(
     val time: String = "",
     val messageType: String = "text",
     val status: MessageStatus = MessageStatus.SENT,
-    val reactions: Map<String, String> = emptyMap(), // ← NOVO: userId -> emoji
-    val replyToText: String = "",                    // ← NOVO: texto da msg original
-    val replyToSender: String = ""                   // ← NOVO: nome do remetente original
+    val reactions: Map<String, String> = emptyMap(),
+    val replyToText: String = "",
+    val replyToSender: String = "",
+    val selfDestructAt: Long = 0L
 )
 
 
@@ -72,12 +73,13 @@ data class FirestoreUser(
     val userTag: String = "",
     val email: String = "",
     val photoUrl: String? = null,
-    val avatarEmoji: String = "🐾",   // ← NOVO
+    val avatarEmoji: String = "🐾",
     val bio: String = "",
     val isOnline: Boolean = false,
     val lastSeen: Long = 0L,
     val createdAt: Long = System.currentTimeMillis(),
-    val fcmToken: String = ""
+    val fcmToken: String = "",
+    val isGhostMode: Boolean = false
 )
 
 data class FirestoreRoom(
@@ -103,9 +105,9 @@ data class FirestoreMessage(
     val messageType: String = "text",
     val readBy: Map<String, Boolean> = emptyMap(),
     val deliveredTo: Map<String, Boolean> = emptyMap(),
-    val reactions: Map<String, String> = emptyMap(), // ← NOVO
-    val replyToText: String = "",                    // ← NOVO
-    val replyToSender: String = "",                  // ← NOVO
+    val reactions: Map<String, String> = emptyMap(),
+    val replyToText: String = "",
+    val replyToSender: String = "",
     val selfDestructAt: Long = 0L,
     val isGhost: Boolean = false
 )
