@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import com.andreilima.capychat.ui.components.CapyTopBar
 import com.andreilima.capychat.ui.utils.pressEffect
 import com.andreilima.capychat.ui.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 private val AVATAR_EMOJIS = listOf(
     "🐾", "🦫", "🐱", "🐶", "🐻", "🦊", "🐼", "🐨",
@@ -54,7 +56,7 @@ fun ProfileScreen(
     val isLoading by chatViewModel.isProfileSaving.collectAsStateWithLifecycle()
 
     var showEditSheet by remember { mutableStateOf(false) }
-    var logoTaps by remember { mutableStateOf(0) }
+    var logoTaps by remember { mutableIntStateOf(0) }
 
     var editedName by remember(userProfile) { mutableStateOf(userProfile?.displayName ?: userName) }
     var editedBio by remember(userProfile) { mutableStateOf(userProfile?.bio ?: "") }
@@ -68,10 +70,10 @@ fun ProfileScreen(
     LaunchedEffect(Unit) { visible = true }
 
     LaunchedEffect(logoTaps) {
-        if (logoTaps > 0) { delay(2000); logoTaps = 0 }
+        if (logoTaps > 0) { delay(2000.milliseconds); logoTaps = 0 }
     }
     LaunchedEffect(saveSuccess) {
-        if (saveSuccess) { delay(2000); saveSuccess = false }
+        if (saveSuccess) { delay(2000.milliseconds); saveSuccess = false }
     }
 
     // Bottom Sheet de edição
@@ -375,7 +377,7 @@ fun ProfileScreen(
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                             ProfileOptionRow(icon = Icons.Outlined.Settings, label = "Configurações", onClick = onOpenSettings)
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                            ProfileOptionRow(icon = Icons.Outlined.HelpOutline, label = "Ajuda", onClick = onOpenHelp)
+                            ProfileOptionRow(icon = Icons.AutoMirrored.Outlined.HelpOutline, label = "Ajuda", onClick = onOpenHelp)
                         }
                     }
                 }

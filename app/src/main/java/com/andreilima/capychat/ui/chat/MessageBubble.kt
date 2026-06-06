@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.*
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -279,7 +280,7 @@ fun MessageBubble(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Icon(
-                                        Icons.Outlined.InsertDriveFile,
+                                        Icons.AutoMirrored.Outlined.InsertDriveFile,
                                         contentDescription = "Arquivo",
                                         modifier = Modifier.size(36.dp),
                                         tint = if (message.isMine)
@@ -371,7 +372,7 @@ fun MessageBubble(
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = { Text("Responder") },
-                        leadingIcon = { Icon(Icons.Outlined.Reply, null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Reply, null) },
                         onClick = { onReply(message); showActionMenu = false }
                     )
                 }

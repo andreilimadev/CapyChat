@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -188,7 +190,7 @@ fun SwipeableChatItem(
 ) {
     val swipeThreshold = 100f
     val maxSwipe = 160f
-    var offsetX by remember { mutableStateOf(0f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
     val animatedOffset by animateFloatAsState(
         targetValue = offsetX,
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
@@ -224,7 +226,7 @@ fun SwipeableChatItem(
                 }
                 IconButton(onClick = { onMute(); offsetX = 0f },
                     modifier = Modifier.graphicsLayer(alpha = iconsAlpha)) {
-                    Icon(if (chat.isMuted) Icons.Outlined.VolumeOff else Icons.Outlined.VolumeUp,
+                    Icon(if (chat.isMuted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp,
                         contentDescription = if (chat.isMuted) "Ativar som" else "Mutar",
                         tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
@@ -327,7 +329,7 @@ fun ChatListItem(chat: ChatItem, onClick: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (chat.isMuted) {
-                            Icon(Icons.Outlined.VolumeOff, contentDescription = null,
+                            Icon(Icons.AutoMirrored.Outlined.VolumeOff, contentDescription = null,
                                 modifier = Modifier.size(12.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         }
